@@ -1,0 +1,14 @@
+28/3/2020
+Giao diện app riêng 
+    + mua riêng lẻ 1 app giao diện đơn giản 
+    + 1 giao diện 
+
+
+CA-SS01 : Cảm biến cửa
+CA-SS02 : Cảm biến thân nhiệt chuyển động
+CA-SS03 : Cảm biến chất lượng không khí
+CA-SS04 : Cảm biến khí dễ cháy và lửa
+
+CA-SWR : {"productId": String , "buttonId" : int , "state" : boolean }
+
+CA-SS04 : {"type":"CA-SS04","warning":1}
