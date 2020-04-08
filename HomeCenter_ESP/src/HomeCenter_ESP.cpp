@@ -90,8 +90,8 @@ void loop()
       // do something here
       if (Serial.available())
       {
-        String payload = Serial.readString();
-        // Serial.println(payload);
+        String payload = Serial.readStringUntil('\r');
+         Serial.println(payload);
 
         StaticJsonDocument<500> JsonDoc;
         deserializeJson(JsonDoc, payload);
@@ -158,11 +158,12 @@ void callback(char *topic, byte *payload, unsigned int length)
   {
     data += (char)payload[i];
   }
-  Serial.flush();
-
+  
   if (mtopic == HomeCenter)
   {
     Serial.print(data);
+    Serial.println();
+    Serial.flush();
   }
 }
 

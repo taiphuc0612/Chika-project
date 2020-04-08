@@ -71,6 +71,8 @@ void loop() {
             String payload;
             serializeJson(JsonDoc, payload);
             Serial3.print(payload);
+            Serial3.println();
+            Serial3.flush();
             break;
         }   
 
@@ -96,6 +98,8 @@ void loop() {
             String payload;
             serializeJson(JsonDoc, payload);
             Serial3.print(payload);
+            Serial3.println();
+            Serial3.flush();
             break;
         }
 
@@ -117,6 +121,8 @@ void loop() {
             String payload;
             serializeJson(JsonDoc, payload);
             Serial3.print(payload);
+            Serial3.println();
+            Serial3.flush();
             break;
         }
         
