@@ -114,29 +114,29 @@ void loop()
   float ppm = mq135_sensor.getPPM();                           // lấy giá trị ppm thường
   float correctedPPM = mq135_sensor.getCorrectedPPM(t, h);     // lấy giá trị ppm sau khi tính với nhiệt độ độ ẩm
 
-  Serial.print("MQ135 RZero: ");
-  Serial.print(rzero);
-  Serial.print("\t Corrected RZero: ");
-  Serial.print(correctedRZero);
-  Serial.print("\t Resistance: ");
-  Serial.print(resistance);
-  Serial.print("\t PPM: ");
-  Serial.print(ppm);
-  Serial.print("\t Corrected PPM: ");
-  Serial.print(correctedPPM);
-  Serial.println("ppm");
-  Serial.println();
+  // Serial.print("MQ135 RZero: ");
+  // Serial.print(rzero);
+  // Serial.print("\t Corrected RZero: ");
+  // Serial.print(correctedRZero);
+  // Serial.print("\t Resistance: ");
+  // Serial.print(resistance);
+  // Serial.print("\t PPM: ");
+  // Serial.print(ppm);
+  // Serial.print("\t Corrected PPM: ");
+  // Serial.print(correctedPPM);
+  // Serial.println("ppm");
+  // Serial.println();
 
   sensorValue[0] = t;
   sensorValue[1] = h;
   sensorValue[2] = correctedPPM;
 
   timer++;
-  if(timer > 80){
+  if(timer > 50){
     Serial.println("send ...");
     radio.write(sensorValue, sizeof(sensorValue));
     timer = 0;
-    delay(1000);
+    delay(100);
   }
 
 

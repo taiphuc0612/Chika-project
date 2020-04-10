@@ -4,6 +4,9 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <RF24.h>
+#include <EEPROM.h>
+
+using namespace std;
 
 #define pinFlame A0
 #define pinGas A1
@@ -19,9 +22,9 @@ RF24 radio(CE, CSN);
 const uint64_t address = 1002502019006;
 
 float sensorValue[2];
-float order;
+float control_fromHC;
 float flame, gas;
-boolean allowWarning = false;
+boolean allowWarning = true;
 
 uint16_t timer = 0;
 
@@ -79,20 +82,21 @@ void showBlue2Green()
   }
 }
 
-void sendData() {
-  radio.stopListening();
-  radio.openWritingPipe(address);
-  radio.write(sensorValue, sizeof(sensorValue));
-}
-
 void recieveData(){
   radio.openReadingPipe(1,address);
   radio.startListening();
   if(radio.available()){
-    radio.read(&order,sizeof(order));
-    allowWarning = order;
+    radio.read(&control_fromHC,sizeof(control_fromHC));
+    allowWarning = (boolean)control_fromHC;
+    EEPROM.update(0, allowWarning);
     Serial.println(allowWarning);
   }
+}
+
+void sendData() {
+  radio.stopListening();
+  radio.openWritingPipe(address);
+  radio.write(sensorValue, sizeof(sensorValue));
 }
 
 void warning(){
@@ -115,6 +119,8 @@ void setup()
   pinMode(ledG, OUTPUT);
   pinMode(ledB, OUTPUT);
   pinMode(buzzer, OUTPUT);
+  allowWarning = EEPROM.read(0);
+  Serial.println(allowWarning);
 }
 
 void loop()
@@ -132,6 +138,7 @@ void loop()
   // Serial.println(output);
 
   recieveData();
+  delay(100);
 
   sensorValue[0] = (float)flame;
 

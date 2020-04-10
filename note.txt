@@ -1,7 +1,8 @@
-28/3/2020
-Giao diện app riêng 
-    + mua riêng lẻ 1 app giao diện đơn giản 
-    + 1 giao diện 
+lib_deps =
+    RF24@1.3.4
+    ArduinoJson@6.14.1
+    Adafruit Unified Sensor@1.1.2
+    DHT sensor library@1.3.0
 
 
 CA-SS01 : Cảm biến cửa
@@ -11,4 +12,7 @@ CA-SS04 : Cảm biến khí dễ cháy và lửa
 
 CA-SWR : {"productId": String , "buttonId" : int , "state" : boolean }
 
+
+
 CA-SS04 : {"type":"CA-SS04","warning":1}
+CA-SW3  : {"type":"CA-SWR3","button_1": true, "button_2": false, "button_3": true}
