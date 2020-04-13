@@ -27,13 +27,13 @@ const char *mqtt_user = "chika";
 const char *mqtt_pass = "2502";
 
 const char *HomeCenter = "f7a3bde5-5a85-470f-9577-cdbf3be121d4";
-const char *CA_SS00 = "f7a3bde5-5a85-470f-9577-cdbf3be121d4/temphumi";
-const char *CA_SWR = "2b92934f-7a41-4ce1-944d-d33ed6d97e13/stateDevice";
-const char *CA_SWR2 = "4a0bfbfe-efff-4bae-927c-c8136df70333/stateDevice";
-const char *CA_SWR3 = "ebb2464e-ba53-4f22-aa61-c76f24d3343d/stateDevice";
-const char *CASS02 = "9d860c55-7899-465b-9fb3-195ae0c0959a/stateLight";
-const char *CASS03 = "1dd591c2-9080-4dcc-9c14-d9ecf8561248/AQIdata";
-const char *CASS04 = "d5ae3121-fb7b-4198-bbb5-a6fc67566452/flameWarning";
+const char *CA_SS00 = "f7a3bde5-5a85-470f-9577-cdbf3be121d4";
+const char *CA_SWR = "2b92934f-7a41-4ce1-944d-d33ed6d97e13";
+const char *CA_SWR2 = "4a0bfbfe-efff-4bae-927c-c8136df70333";
+const char *CA_SWR3 = "ebb2464e-ba53-4f22-aa61-c76f24d3343d";
+const char *CASS02 = "9d860c55-7899-465b-9fb3-195ae0c0959a";
+const char *CASS03 = "1dd591c2-9080-4dcc-9c14-d9ecf8561248";
+const char *CASS04 = "d5ae3121-fb7b-4198-bbb5-a6fc67566452";
 
 Ticker ticker;
 WiFiClient esp;
@@ -105,12 +105,12 @@ void loop()
         float h = SS00.readHumidity();
         float t = SS00.readTemperature();
 
-        while(isnan(h) || isnan(t))
-        {
-          h = SS00.readHumidity();
-          t = SS00.readTemperature();
-          delay(10);
-        }
+        // while(isnan(h) || isnan(t))
+        // {
+        //   h = SS00.readHumidity();
+        //   t = SS00.readTemperature();
+        //   delay(10);
+        // }
 
         String sendTempHumi;
         char payload_sendTempHumi[300];
@@ -134,7 +134,7 @@ void loop()
         payload_MEGA.toCharArray(payload_char, payload_MEGA.length() + 1);
         String type = JsonDoc["type"];
 
-        if (type == "CA-SWR")
+        if (type == "CA-SWR1")
         {
           client.publish(CA_SWR, payload_char);
         }
@@ -171,7 +171,7 @@ void loop()
     boolean state = digitalRead(ledR);
     digitalWrite(ledR, !state);
   }
-  delay(100);
+  delay(5);
 }
 
 void reconnect()
@@ -182,7 +182,13 @@ void reconnect()
   if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass))
   {
     Serial.println("connected");
-    client.subscribe(HomeCenter);
+    // client.subscribe(HomeCenter);
+    client.subscribe(CA_SWR);
+    client.subscribe(CA_SWR2);
+    client.subscribe(CA_SWR3);
+    client.subscribe(CASS02);
+    client.subscribe(CASS03);
+    client.subscribe(CASS04);
   }
   else
   {
@@ -197,20 +203,20 @@ void callback(char *topic, byte *payload, unsigned int length)
   // Serial.print("Message arrived [");
   // Serial.print(topic);
   // Serial.print("] ");
-  String data;
-  String mtopic = (String)topic;
+  // String data;
+  // String mtopic = (String)topic;
 
   for (uint16_t i = 0; i < length; i++)
   {
-    data += (char)payload[i];
+    Serial.print((char)payload[i]);
   }
+  Serial.println();
   
-  if (mtopic == HomeCenter)
-  {
-    // Serial.print(length);
-    Serial.println(data);
-    Serial.flush();
-  }
+  // if (mtopic == HomeCenter)
+  // {
+  //   // Serial.print(length);
+  //   Serial.println(data);  
+  // }
 }
 
 void tick()

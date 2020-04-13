@@ -21,7 +21,7 @@ RF24 radio(CE, CSN);
 
 const uint64_t address = 1002502019006;
 
-float sensorValue[2];
+float sensorValue[3];
 float control_fromHC;
 float flame, gas;
 boolean allowWarning = true;
@@ -88,6 +88,7 @@ void recieveData(){
   if(radio.available()){
     radio.read(&control_fromHC,sizeof(control_fromHC));
     allowWarning = (boolean)control_fromHC;
+    sensorValue[2] = (float)allowWarning;
     EEPROM.update(0, allowWarning);
     Serial.println(allowWarning);
   }

@@ -5,17 +5,19 @@
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
 #include <ArduinoJson.h>
+#include <EEPROM.h>
 
 #define CE 9
 #define CSN 53
 #define dht_pin A0
 #define dht_type DHT22
 
+
 DHT dht(dht_pin, dht_type);
 
 RF24 radio(CE, CSN);
 
-const uint64_t address[5] = {1002502019002, 1002502019003, 1002502019004, 1002502019005, 1002502019006};
+const uint64_t address[5] = {1002502019001, 1002502019003, 1002502019004, 1002502019005, 1002502019006};
 //1002502019002 - CA-SW2, 1002502019003 - CA-SW3, 1002502019004 - PIR , 1002502019005 AQI, 1002502019005 Flame&Gas
 
 float dhtValue[3];
@@ -27,7 +29,7 @@ uint32_t timer = 0;
 void setup()
 {
     Serial.begin(9600);
-    Serial3.begin(115200);
+    Serial3.begin(115200);  
     Serial.println("Serial Mega ready");
     SPI.begin();
     //========================RF========================
@@ -58,14 +60,13 @@ void loop()
         case 1:
         {
             StaticJsonDocument<500> JsonDoc;
-            JsonDoc["type"] = "CA-SWR2";
+            JsonDoc["type"] = "CA-SWR1";
             JsonDoc["button_1"] = (boolean)incomingValue[0];
-            JsonDoc["button_2"] = (boolean)incomingValue[1];
+            // JsonDoc["button_2"] = (boolean)incomingValue[1];
             String payload;
             serializeJson(JsonDoc, payload);
             Serial.println(payload);
             Serial3.println(payload);
-            Serial3.flush();
             break;
         }
         case 2:
@@ -79,7 +80,6 @@ void loop()
             serializeJson(JsonDoc, payload);
             Serial.println(payload);
             Serial3.println(payload);
-            Serial3.flush();
             break;
         }
         case 3: // PIR
@@ -97,14 +97,13 @@ void loop()
 
             StaticJsonDocument<500> JsonDoc;
             JsonDoc["type"] = "CA-SS02";
-            JsonDoc["warning"] = incomingValue[0];
-            JsonDoc["delayTime"] = incomingValue[1];
+            JsonDoc["auto"] = incomingValue[0];
+            JsonDoc["delayTime"] = incomingValue[1]/1000;
             JsonDoc["state"] = incomingValue[2];
             String payload;
             serializeJson(JsonDoc, payload);
             Serial3.print(payload);
             Serial3.println();
-            Serial3.flush();
             break;
         }
 
@@ -120,7 +119,7 @@ void loop()
             output += F(" % \t Air Quality : ");
             output += incomingValue[2];
             output += F(" ppm");
-            Serial.println(output);
+            // Serial.println(output);
 
             StaticJsonDocument<500> JsonDoc;
             JsonDoc["type"] = "CA-SS03";
@@ -131,7 +130,6 @@ void loop()
             serializeJson(JsonDoc, payload);
             Serial3.print(payload);
             Serial3.println();
-            Serial3.flush();
             break;
         }
 
@@ -152,11 +150,11 @@ void loop()
             JsonDoc["type"] = "CA-SS04";
             JsonDoc["flame"] = incomingValue[0];
             JsonDoc["gas"] = incomingValue[1];
+            JsonDoc["warning"] = incomingValue[2];
             String payload;
             serializeJson(JsonDoc, payload);
             Serial3.print(payload);
             Serial3.println();
-            Serial3.flush();
             break;
         }
 
@@ -165,7 +163,7 @@ void loop()
         }
     } // end condition of radio RF
     // Serial.println("Delay time is starting");
-     delay(200);
+     delay(10);
 
     //==============Listen esp=======================
 
@@ -188,21 +186,21 @@ void loop()
             HCCommand[0] = warning;
             radio.openWritingPipe(address[4]);
             radio.write(&HCCommand, sizeof(HCCommand));
-            delay(100);
+            delay(5);
         }
         if (type == "CA-SS02")
         {
-            boolean state = JsonDoc["light"];
-            uint16_t delayTime = JsonDoc["delay"];
+            boolean state = JsonDoc["auto"];
+            uint16_t delayTime = JsonDoc["delayTime"];
             Serial.print("CA-SS02 light : ");
             Serial.print(state);
             Serial.print("\t delay time set in : ");
             Serial.println(delayTime);
             HCCommand[0] = state;
-            HCCommand[1] = delayTime;
+            HCCommand[1] = delayTime * 1000; // đôi lúc không gửi delayTime
             radio.openWritingPipe(address[2]);
             radio.write(&HCCommand, sizeof(HCCommand));
-            delay(100);
+            delay(5);
         }
 
         if (type == "CA-SWR1")

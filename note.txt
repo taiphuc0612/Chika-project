@@ -16,3 +16,10 @@ CA-SWR : {"productId": String , "buttonId" : int , "state" : boolean }
 
 CA-SS04 : {"type":"CA-SS04","warning":1}
 CA-SW3  : {"type":"CA-SWR3","button_1": true, "button_2": false, "button_3": true}
+
+
+giai đoạn setup:
+User's id  kết nối với HC
+HC lúc setup sẽ gửi yêu cầu lên server bằng HTPP bằng HC's ID để lấy về danh sách các thiết bị RF user đã đăng ký
+chuỗi JSON nhận về: kiểu mảng {"type" : String, "product_id" : String, "RFchannel" : long }
+HC xử lý thêm thông tin RF vào danh sách lắng nghe
