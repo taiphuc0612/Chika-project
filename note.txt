@@ -15,7 +15,7 @@ CA-SWR : {"productId": String , "buttonId" : int , "state" : boolean }
 
 
 CA-SS04 : {"type":"CA-SS04","warning":1}
-CA-SW3  : {"type":"CA-SWR3","button_1": true, "button_2": false, "button_3": true}
+CA-SW3  : {"type":"CA-SR3","button_1": true, "button_2": false, "button_3": true}
 
 
 giai đoạn setup:

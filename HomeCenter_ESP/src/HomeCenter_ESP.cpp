@@ -6,6 +6,9 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <DHT.h>
+#include <EEPROM.h>
+#include <PriUint64.h>
+#include <IRutils.h>
 
 #define ledR 16
 #define ledB 5
@@ -14,8 +17,9 @@
 #define DHT_type DHT22
 
 uint32_t timer_smartConfig = 0;
-uint16_t timer_sendTempHumi = 0 ;
+uint16_t timer_sendTempHumi = 0;
 uint16_t longPressTime = 6000;
+int numberOfDevice = 0;
 
 boolean buttonActive = false;
 
@@ -26,19 +30,28 @@ const int mqtt_port = 2502;
 const char *mqtt_user = "chika";
 const char *mqtt_pass = "2502";
 
-const char *HomeCenter = "f7a3bde5-5a85-470f-9577-cdbf3be121d4";
-const char *CA_SS00 = "f7a3bde5-5a85-470f-9577-cdbf3be121d4";
-const char *CA_SWR = "2b92934f-7a41-4ce1-944d-d33ed6d97e13";
-const char *CA_SWR2 = "4a0bfbfe-efff-4bae-927c-c8136df70333";
-const char *CA_SWR3 = "ebb2464e-ba53-4f22-aa61-c76f24d3343d";
-const char *CASS02 = "9d860c55-7899-465b-9fb3-195ae0c0959a";
-const char *CASS03 = "1dd591c2-9080-4dcc-9c14-d9ecf8561248";
-const char *CASS04 = "d5ae3121-fb7b-4198-bbb5-a6fc67566452";
+const char *HC_ID = "f7a3bde5-5a85-470f-9577-cdbf3be121d4";
+// const char *CA_SS00 = "f7a3bde5-5a85-470f-9577-cdbf3be121d4";
+// const char *CA_SR = "2b92934f-7a41-4ce1-944d-d33ed6d97e13";
+// const char *CA_SR2 = "4a0bfbfe-efff-4bae-927c-c8136df70333";
+// const char *CA_SR3 = "ebb2464e-ba53-4f22-aa61-c76f24d3343d";
+// const char *CA_SS02 = "9d860c55-7899-465b-9fb3-195ae0c0959a";
+// const char *CA_SS03 = "1dd591c2-9080-4dcc-9c14-d9ecf8561248";
+// const char *CA_SS04 = "d5ae3121-fb7b-4198-bbb5-a6fc67566452";
 
 Ticker ticker;
 WiFiClient esp;
 PubSubClient client(esp);
-DHT SS00(DHT_pin,DHT_type);
+DHT SS00(DHT_pin, DHT_type);
+
+typedef struct
+{
+  int id;
+  char productId[100];
+  uint64_t RF_Chanel;
+} device __attribute__((packed));
+
+device CA_device[20];
 
 void tick();
 void tick2();
@@ -47,6 +60,9 @@ boolean startSmartConfig();
 void longPress();
 void callback(char *topic, byte *payload, unsigned int length);
 void reconnect();
+void loadDataFromEEPROM();
+void loadDataFromServer();
+void initial();
 
 void setup()
 {
@@ -84,94 +100,93 @@ void setup()
     Serial.println(WiFi.localIP());
   }
 
+  loadDataFromServer();
+  // initial();
+
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
 }
 
 void loop()
 {
+  delay(3000);
+  initial();
   //longPress();
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    digitalWrite(ledB, HIGH);
-    digitalWrite(ledR, LOW);
-    if (client.connected())
-    {
-      client.loop();
-      // do something here
-      timer_sendTempHumi++;
-      if(timer_sendTempHumi >= 60){
-        timer_sendTempHumi = 0 ;
-        float h = SS00.readHumidity();
-        float t = SS00.readTemperature();
+  // if (WiFi.status() == WL_CONNECTED)
+  // {
+  //   digitalWrite(ledB, HIGH);
+  //   digitalWrite(ledR, LOW);
+  //   if (client.connected())
+  //   {
+  //     client.loop();
+  //     // do something here
+  //     timer_sendTempHumi++;
+  //     if (timer_sendTempHumi >= 60)
+  //     {
+  //       timer_sendTempHumi = 0;
+  //       float h = SS00.readHumidity();
+  //       float t = SS00.readTemperature();
 
-        // while(isnan(h) || isnan(t))
-        // {
-        //   h = SS00.readHumidity();
-        //   t = SS00.readTemperature();
-        //   delay(10);
-        // }
+  //       String sendTempHumi;
+  //       char payload_sendTempHumi[300];
+  //       StaticJsonDocument<300> JsonDoc;
+  //       JsonDoc["type"] = "CA-SS00";
+  //       JsonDoc["temperture"] = t;
+  //       JsonDoc["humidity"] = h;
+  //       serializeJson(JsonDoc, sendTempHumi);
+  //       sendTempHumi.toCharArray(payload_sendTempHumi, sendTempHumi.length() + 1);
+  //       client.publish(HC_ID, payload_sendTempHumi, true);
+  //     }
+  //     if (Serial.available())
+  //     {
+  //       String payload_MEGA = Serial.readStringUntil('\r');
+  //       // Serial.println(payload);
 
-        String sendTempHumi;
-        char payload_sendTempHumi[300];
-        StaticJsonDocument<300> JsonDoc;
-        JsonDoc["type"] = "CA-SS00";
-        JsonDoc["temperture"] = t;
-        JsonDoc["humidity"] = h;
-        serializeJson(JsonDoc,sendTempHumi);
-        // Serial.println(sendTempHumi);
-        sendTempHumi.toCharArray(payload_sendTempHumi,sendTempHumi.length() + 1);
-        client.publish(CA_SS00,payload_sendTempHumi,true);
+  //       StaticJsonDocument<500> JsonDoc;
+  //       deserializeJson(JsonDoc, payload_MEGA);
+  //       payload_MEGA.toCharArray(payload_char, payload_MEGA.length() + 1);
+  //       String type = JsonDoc["type"];
 
-      }
-      if (Serial.available())
-      { 
-        String payload_MEGA = Serial.readStringUntil('\r');
-        // Serial.println(payload);
-
-        StaticJsonDocument<500> JsonDoc;
-        deserializeJson(JsonDoc, payload_MEGA);
-        payload_MEGA.toCharArray(payload_char, payload_MEGA.length() + 1);
-        String type = JsonDoc["type"];
-
-        if (type == "CA-SWR1")
-        {
-          client.publish(CA_SWR, payload_char);
-        }
-        else if (type == "CA-SWR2")
-        {
-          client.publish(CA_SWR2, payload_char);
-        }
-        else if (type == "CA-SWR3")
-        {
-          client.publish(CA_SWR3, payload_char);
-        }
-        if (type == "CA-SS02")
-        {
-          client.publish(CASS02, payload_char);
-        }
-        if(type == "CA-SS03"){
-          client.publish(CASS03, payload_char);
-        }
-        if(type == "CA-SS04"){
-          client.publish(CASS04, payload_char);
-        }
-      }
-    }
-    else
-    {
-      reconnect();
-    }
-  }
-  else
-  {
-    Serial.println("WiFi Connected Fail");
-    WiFi.reconnect();
-    digitalWrite(ledB, LOW);
-    boolean state = digitalRead(ledR);
-    digitalWrite(ledR, !state);
-  }
-  delay(5);
+  //       if (type == "CA-SWR1")
+  //       {
+  //         client.publish(CA_SR, payload_char);
+  //       }
+  //       else if (type == "CA-SWR2")
+  //       {
+  //         client.publish(CA_SR2, payload_char);
+  //       }
+  //       else if (type == "CA-SWR3")
+  //       {
+  //         client.publish(CA_SR3, payload_char);
+  //       }
+  //       if (type == "CA-SS02s")
+  //       {
+  //         client.publish(CA_SS02, payload_char);
+  //       }
+  //       if (type == "CA-SS03s")
+  //       {
+  //         client.publish(CA_SS03, payload_char);
+  //       }
+  //       if (type == "CA-SS04s")
+  //       {
+  //         client.publish(CA_SS04, payload_char);
+  //       }
+  //     }
+  //   }
+  //   else
+  //   {
+  //     reconnect();
+  //   }
+  // }
+  // else
+  // {
+  //   Serial.println("WiFi Connected Fail");
+  //   WiFi.reconnect();
+  //   digitalWrite(ledB, LOW);
+  //   boolean state = digitalRead(ledR);
+  //   digitalWrite(ledR, !state);
+  // }
+  // delay(5);
 }
 
 void reconnect()
@@ -182,13 +197,17 @@ void reconnect()
   if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass))
   {
     Serial.println("connected");
-    // client.subscribe(HomeCenter);
-    client.subscribe(CA_SWR);
-    client.subscribe(CA_SWR2);
-    client.subscribe(CA_SWR3);
-    client.subscribe(CASS02);
-    client.subscribe(CASS03);
-    client.subscribe(CASS04);
+    for (int i = 0; i < numberOfDevice; i++)
+    {
+      client.subscribe(CA_device[i].productId);
+    }
+
+    // client.subscribe(CA_SR);
+    // client.subscribe(CA_SR2);
+    // client.subscribe(CA_SR3);
+    // client.subscribe(CA_SS02);
+    // client.subscribe(CA_SS03);
+    // client.subscribe(CA_SS04);
   }
   else
   {
@@ -211,12 +230,98 @@ void callback(char *topic, byte *payload, unsigned int length)
     Serial.print((char)payload[i]);
   }
   Serial.println();
-  
-  // if (mtopic == HomeCenter)
-  // {
-  //   // Serial.print(length);
-  //   Serial.println(data);  
-  // }
+}
+
+void initial()
+{
+  String payload;
+  EEPROM.begin(4095);
+  numberOfDevice = EEPROM.read(0);
+  EEPROM.end();
+  StaticJsonDocument<300> JsonDoc;
+  JsonDoc["command"] = "Number of device";
+  JsonDoc["value"] = numberOfDevice;
+  serializeJson(JsonDoc, payload);
+  Serial.println(payload);
+  delay(1000);
+
+  if (numberOfDevice <= 0)
+  {
+    // Serial.println("need sever");
+    loadDataFromServer(); // if haven't data form HC start request to sever
+  }
+  else
+  {
+    // Serial.println("no need sever");
+    loadDataFromEEPROM();
+  }
+
+  for (int i = 0; i < numberOfDevice; i++)
+  {
+    payload.clear();
+    JsonDoc.clear();
+    JsonDoc["command"] = "Data from user";
+    JsonDoc["id"] = CA_device[i].id;
+    JsonDoc["productID"] = CA_device[i].productId;
+    JsonDoc["RFchannel"] = uint64ToString(CA_device[i].RF_Chanel);
+    serializeJson(JsonDoc, payload);
+    Serial.println(payload);
+    delay(1000);
+  }
+
+  payload.clear();
+  JsonDoc.clear();
+  JsonDoc["command"] = "end of data user";
+  serializeJson(JsonDoc,payload);
+  Serial.println(payload);
+
+}
+
+void loadDataFromServer()
+{
+  // get information device from sever
+
+  String CA1 = "2b92934f-7a41-4ce1-944d-d33ed6d97e13";
+  String CA2 = "4a0bfbfe-efff-4bae-927c-c8136df70333";
+  String CA3 = "ebb2464e-ba53-4f22-aa61-c76f24d3343d";
+
+  CA1.toCharArray(CA_device[0].productId, CA1.length() + 1);
+  CA_device[0].RF_Chanel = 1002502019001;
+
+  CA2.toCharArray(CA_device[1].productId, CA2.length() + 1);
+  CA_device[1].RF_Chanel = 1002502019002;
+
+  CA3.toCharArray(CA_device[2].productId, CA3.length() + 1);
+  CA_device[2].RF_Chanel = 1002502019003;
+
+  numberOfDevice = 3;
+
+  // start store data to EEPROM
+  EEPROM.begin(4095);
+  int address = 1;
+  for (int i = 0; i < numberOfDevice; i++)
+  {
+    CA_device[i].id = address;
+    EEPROM.put(address, CA_device[i]);
+    delay(200);
+    address += sizeof(CA_device[i]);
+  }
+  EEPROM.write(0, numberOfDevice);
+  EEPROM.commit();
+  EEPROM.end();
+}
+
+void loadDataFromEEPROM()
+{
+  EEPROM.begin(4095);
+  int address = 1;
+  for (int i = 0; i < numberOfDevice; i++)
+  {
+    EEPROM.get(address, CA_device[i]);
+    delay(200);
+    address += sizeof(CA_device[i]);
+  }
+  EEPROM.end();
 }
 
 void tick()

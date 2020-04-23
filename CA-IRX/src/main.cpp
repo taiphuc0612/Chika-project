@@ -10,10 +10,10 @@
 #include <IRsend.h>
 
 #define ledR 16
-#define ledG 5
-#define btn_config 15
-#define ledIR 4
-#define ledRecv 14
+#define ledG 4
+#define btn_config 14
+#define ledIR 5
+#define ledRecv 13
 
 uint16_t timer = 0; // set first time config
 uint16_t longPressTime = 2000;
@@ -72,6 +72,8 @@ void setup()
   pinMode(ledR, OUTPUT);
   pinMode(btn_config, INPUT);
   pinMode(ledG, OUTPUT);
+  pinMode(ledIR, OUTPUT);
+  Serial.println("bug1");
 
   delay(10000);
   if (!WiFi.isConnected())
@@ -80,7 +82,6 @@ void setup()
   }
   else
   {
-    digitalWrite(ledG, HIGH);
     Serial.println("WIFI CONNECTED");
     Serial.println(WiFi.SSID());
     Serial.print("IP: ");
@@ -89,11 +90,13 @@ void setup()
 
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
+  digitalWrite(ledIR, HIGH);
+
 }
 
 void loop()
 {
-  longPress();
+  // longPress();
   if (WiFi.status() == WL_CONNECTED)
   {
     if (client.connected())
@@ -297,7 +300,7 @@ boolean startSmartConfig()
 
 void longPress()
 {
-  if (digitalRead(btn_config) == HIGH)
+  if (digitalRead(btn_config) == LOW)
   {
     if (buttonActive == false)
     {
