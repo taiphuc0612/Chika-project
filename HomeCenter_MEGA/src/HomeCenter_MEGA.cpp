@@ -62,16 +62,7 @@ void setup()
 void loop()
 {
     delay(2000);
-    for (int i = 0; i < numberOfDevice; i++)
-    {
-        Serial.print("id of device : ");
-        Serial.println(CA_device[i].id);
-        Serial.print("productID of device : ");
-        Serial.println(CA_device[i].productId);
-        Serial.print("RF_chanel of device : ");
-        Serial.println(PriUint64<DEC>(CA_device[i].RF_Chanel));
-        delay(2000);
-    }
+    Serial.println("hello");
 
     // //================= Listen RF ===================
     // radio.openReadingPipe(1, address[0]);
@@ -311,14 +302,28 @@ void initial()
         if (Serial3.available())
         {
             String payload = Serial3.readStringUntil('\r');
-            Serial.println(payload);
             StaticJsonDocument<300> JsonDoc;
             deserializeJson(JsonDoc, payload);
             String command = JsonDoc["command"];
+            Serial.print("ESP: ");
+            if (command.length() > 4)
+            {
+                Serial.print(command);
+                Serial.print("  ");
+            }
+            else
+                Serial.println(payload);
+
+            if(payload == "Wrong"){
+                Serial.print("MEGA: ");
+                Serial.println("Everything is alright");
+            }
+
             if (command == "Number of device")
             {
                 numberOfDevice = JsonDoc["value"];
                 Serial.println(numberOfDevice);
+                Serial.println();
             }
 
             if (command == "Data from user")
@@ -334,17 +339,71 @@ void initial()
 
                 CA_device[index].id = id;
 
-                String payloadPID = JsonDoc["productID"];
+                String payloadPID = JsonDoc["productId"];
                 payloadPID.toCharArray(CA_device[index].productId, payloadPID.length() + 1);
+                Serial.print("productId : ");
                 Serial.println(CA_device[index].productId);
 
                 String payloadRF = JsonDoc["RFchannel"];
                 CA_device[index].RF_Chanel = stringToUint64(payloadRF);
+                Serial.print("RF_channel : ");
                 Serial.println(PriUint64<DEC>(CA_device[0].RF_Chanel));
+                Serial.println();
             }
 
             if (command == "end of data user")
+            {
+                Serial.println();
+                Serial.print("Mega: ");
+                Serial.println("check data");
+                delay(1000);
+                for (int i = 0; i < numberOfDevice; i++)
+                {
+                    Serial.print("id of device : ");
+                    Serial.println(CA_device[i].id);
+                    Serial.print("productId of device : ");
+                    Serial.println(CA_device[i].productId);
+                    Serial.print("RF_chanel of device : ");
+                    Serial.println(PriUint64<DEC>(CA_device[i].RF_Chanel));
+                    Serial.println();
+
+                    String payload_check;
+                    JsonDoc.clear();
+                    JsonDoc["check_id"] = CA_device[i].id;
+                    JsonDoc["check_productId"] = CA_device[i].productId;
+                    serializeJson(JsonDoc, payload_check);
+                    Serial3.print(payload_check);
+                    String payloadOK;
+                    while (1)
+                    {
+                        if (Serial3.available())
+                        {
+                            payloadOK = Serial3.readStringUntil('\r');
+                            Serial.print("ESP: ");
+                            Serial.println(payloadOK);
+                            if (payloadOK == "OK")
+                                break;
+                            if (payloadOK == "Wrong")
+                            {
+                                Serial.println("Data have wrong");
+                                break;
+                            }
+                        }
+                        delay(200);
+                    }
+                    Serial.println();
+                    delay(2000);
+                }
+                Serial3.print("\r");
+                Serial3.print("Check Done");
+                Serial3.print("\r");
+            }
+
+            if (command == "Finish")
+            {
+                Serial.println("\nMEGA: Show up");
                 return;
+            }
         }
         delay(100);
     }

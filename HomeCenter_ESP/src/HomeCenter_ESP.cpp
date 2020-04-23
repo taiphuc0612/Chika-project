@@ -20,6 +20,7 @@ uint32_t timer_smartConfig = 0;
 uint16_t timer_sendTempHumi = 0;
 uint16_t longPressTime = 6000;
 int numberOfDevice = 0;
+int funDelay = 2000;
 
 boolean buttonActive = false;
 
@@ -63,6 +64,7 @@ void reconnect();
 void loadDataFromEEPROM();
 void loadDataFromServer();
 void initial();
+int checkDataID(int id);
 
 void setup()
 {
@@ -94,14 +96,17 @@ void setup()
   {
     ticker.detach();         // shutdown ticker
     digitalWrite(ledR, LOW); // show led
-    Serial.println("WIFI CONNECTED");
-    Serial.println(WiFi.SSID());
+    Serial.print("WIFI CONNECTED");
+    Serial.print('\r');
+    Serial.print(WiFi.SSID());
+    Serial.print('\r');
     Serial.print("IP: ");
-    Serial.println(WiFi.localIP());
+    Serial.print(WiFi.localIP());
+    Serial.print('\r');
   }
 
   loadDataFromServer();
-  // initial();
+  initial();
 
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
@@ -110,7 +115,6 @@ void setup()
 void loop()
 {
   delay(3000);
-  initial();
   //longPress();
   // if (WiFi.status() == WL_CONNECTED)
   // {
@@ -242,8 +246,9 @@ void initial()
   JsonDoc["command"] = "Number of device";
   JsonDoc["value"] = numberOfDevice;
   serializeJson(JsonDoc, payload);
-  Serial.println(payload);
-  delay(1000);
+  Serial.print(payload);
+  Serial.print('\r');
+  delay(2000);
 
   if (numberOfDevice <= 0)
   {
@@ -262,19 +267,56 @@ void initial()
     JsonDoc.clear();
     JsonDoc["command"] = "Data from user";
     JsonDoc["id"] = CA_device[i].id;
-    JsonDoc["productID"] = CA_device[i].productId;
+    JsonDoc["productId"] = CA_device[i].productId;
     JsonDoc["RFchannel"] = uint64ToString(CA_device[i].RF_Chanel);
     serializeJson(JsonDoc, payload);
-    Serial.println(payload);
-    delay(1000);
+    Serial.print(payload);
+    Serial.print('\r');
+    delay(2000);
   }
 
   payload.clear();
   JsonDoc.clear();
   JsonDoc["command"] = "end of data user";
-  serializeJson(JsonDoc,payload);
-  Serial.println(payload);
+  serializeJson(JsonDoc, payload);
+  Serial.print(payload);
+  Serial.print('\r');
 
+  while (1) // check data
+  {
+    if (Serial.available())
+    {
+      String payload_check = Serial.readStringUntil('\r');
+      if (payload_check == "Check Done")
+        break;
+      else
+      {
+        JsonDoc.clear();
+        deserializeJson(JsonDoc, payload_check);
+        int check_id = JsonDoc["check_id"];
+        int index = checkDataID(check_id);
+        String check_productId = JsonDoc["check_productId"];
+        delay(200);
+        if (check_productId.equals(CA_device[index].productId))
+        {
+          Serial.print("OK");
+          Serial.print('\r');
+        }
+        else
+        {
+          Serial.print("Wrong");
+          Serial.print('\r');
+        }
+      }
+    }
+    delay(200);
+  }
+
+  JsonDoc.clear();
+  payload.clear();
+  JsonDoc["command"] = "Finish";
+  serializeJson(JsonDoc, payload);
+  Serial.println(payload);
 }
 
 void loadDataFromServer()
@@ -322,6 +364,17 @@ void loadDataFromEEPROM()
     address += sizeof(CA_device[i]);
   }
   EEPROM.end();
+}
+
+int checkDataID(int id)
+{
+  int i = 0;
+  for (i = 0; i < numberOfDevice; i++)
+  {
+    if (id == CA_device[i].id)
+      return i;
+  }
+  return -1;
 }
 
 void tick()
