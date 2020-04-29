@@ -1,3 +1,7 @@
+//The future is always a blank page
+//1002502019002 - CA-SW2, 1002502019003 - CA-SW3, 1002502019004 - PIR , 1002502019005 AQI, 1002502019005 Flame&Gas
+
+
 #include <Arduino.h>
 #include <SPI.h>
 #include <RF24.h>
@@ -8,303 +12,267 @@
 #include <EEPROM.h>
 #include <PriUint64.h>
 #include <math.h>
+#include <Adafruit_NeoPixel.h>
 
 #define CE 9
 #define CSN 53
 #define dht_pin A0
 #define dht_type DHT22
-
-DHT dht(dht_pin, dht_type); // declare DHT object
-
-RF24 radio(CE, CSN); // declare RF object
+#define PIN 6
+#define NUMPIXELS 8
+#define DELAYVAL 100
 
 typedef struct
 {
-    int id;
-    char productId[100];
-    uint64_t RF_Chanel;
-} device __attribute__((packed));
+    int id;                 // address device in EEPROM
+    char productId[100];    // ID of product and topic too
+    char type[20];          // type of device (SR, SS01, SS0X, ....)
+    float value[3];         // value of device
+    uint64_t RF_Channel;     // channel for communicate with orther device using RF signal
 
-uint64_t address[5] = {1002502019001, 1002502019003, 1002502019004, 1002502019005, 1002502019006}; // RF address
-//1002502019002 - CA-SW2, 1002502019003 - CA-SW3, 1002502019004 - PIR , 1002502019005 AQI, 1002502019005 Flame&Gas
+} device __attribute__((packed));   // stuct of Chika device help store data esay for managing (haven't known "attribute((packed))" yet :D )
+
+Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);     //Object of LED Line
+DHT dht(dht_pin, dht_type);     // Object of DHT
+RF24 radio(CE, CSN);            // Object of nRF24
+
+//Adafruit_NeoPixel - FS - First Start:
+int FS_red[8] = {255, 255, 255, 0, 0, 75, 128, 255};
+int FS_green[8] = {0, 165, 255, 128, 0, 0, 0, 255};
+int FS_blue[8] = {0, 0, 0, 0, 255, 130, 128, 255};
+int proceed[9] = {40, 40, 40, 40, 40, 40, 190, 220, 255};
+
+//Adafruit_NeoPixel - CS - Chika Start:
+int CS_red[9] = {65, 0, 0, 0, 65, 0, 0, 0};
+int CS_green[9] = {40, 60, 255, 128, 40, 60, 255, 128};
+int CS_blue[9] = {134, 255, 153, 0, 134, 255, 153, 0};
+
+
+
 
 float Device_2_HC[3], HC_2_Device[3]; // Device_2_HC
 
+int numberOfKey = 3; // number of value of HC_2_Device
 int numberOfDevice, index;
 
-device CA_device[20];
+device CA_device[20];   //We have 20 Chika device :D
 
-uint8_t pipeNum;
+uint8_t pipeNum;        //It help to classify RF channel
 
-uint32_t timer = 0;
 
+// cause C++ 
 uint64_t stringToUint64(String input);
 void initial();
 uint64_t iDontKnow(int exp);
+void shiftLeft(int a[]);
+void shiftRight(int a[]);
+void pixelsOff();
+void ChikaStartUp();
+void StartUp();
+void FirstStartUp();
+void pixelsOff();
+void normalMode();
+void processing();
 
 void setup()
 {
     Serial.begin(9600);
-    Serial3.begin(115200);
+    Serial3.begin(115200);              // the way communicate with ESP
     Serial.println("Serial Mega ready");
     SPI.begin();
+    pixels.begin();
     //========================RF========================
     radio.begin();
     radio.setRetries(15, 15);
     radio.setPALevel(RF24_PA_MAX);
     //==================================================
     dht.begin();
+    //===================initial========================
     Serial.println(".....initial.....");
     index = 0;
-    initial();
+    initial();          // proceed reload data - get data of device user having from server
+    delay(1000);
+    Serial.println("Hi ! Chika Home Central at your service ");
 }
 
 void loop()
 {
-    delay(2000);
-    Serial.println("hello");
+    delay(1000);
 
-    // //================= Listen RF ===================
-    // radio.openReadingPipe(1, address[0]);
-    // radio.openReadingPipe(2, address[1]);
-    // radio.openReadingPipe(3, address[2]);
-    // radio.openReadingPipe(4, address[3]);
-    // radio.openReadingPipe(5, address[4]);
-    // radio.startListening();
+//============================= Listen RF =============================
+    for (int i = 0; i < numberOfDevice; i++)
+    {
+        radio.openReadingPipe(i + 1, CA_device[i].RF_Channel);      // listen on radio channel (RF)
+    }
+    radio.startListening();
 
-    // if (radio.available(&pipeNum))
-    // {
-    //     radio.read(&Device_2_HC, sizeof(Device_2_HC)); // read data form device
-    //     switch (pipeNum)
-    //     {
-    //     case 1: // CA-SWR1
-    //     {
-    //         StaticJsonDocument<500> JsonDoc;
-    //         JsonDoc["type"] = "CA-SR1";
-    //         JsonDoc["button1"] = (boolean)Device_2_HC[0];
-    //         // JsonDoc["button_2"] = (boolean)Device_2_HC[1];
-    //         String payload;
-    //         serializeJson(JsonDoc, payload);
-    //         Serial.println(payload);
-    //         Serial3.print(payload);
-    //         Serial3.print('\r');
-    //         break;
-    //     }
-    //     case 2: // CA-SWR2
-    //     {
-    //         StaticJsonDocument<500> JsonDoc;
-    //         JsonDoc["type"] = "CA-SR3";
-    //         JsonDoc["button1"] = (boolean)Device_2_HC[0];
-    //         JsonDoc["button2"] = (boolean)Device_2_HC[1];
-    //         JsonDoc["button3"] = (boolean)Device_2_HC[2];
-    //         String payload;
-    //         serializeJson(JsonDoc, payload);
-    //         Serial.println(payload);
-    //         Serial3.println(payload);
-    //         break;
-    //     }
-    //     case 3: // PIR
-    //     {
-    //         String output;
-    //         output += F("PipeNum: ");
-    //         output += pipeNum;
-    //         output += F("\t waring: ");
-    //         output += Device_2_HC[0];
-    //         output += F("\t Delay time: ");
-    //         output += Device_2_HC[1];
-    //         output += F("\t State of device: ");
-    //         output += Device_2_HC[2];
-    //         // Serial.println(output);
+    if (radio.available(&pipeNum))
+    {
+        Serial.println(pipeNum);
+        radio.read(&Device_2_HC, sizeof(Device_2_HC));              // read data form device
+        StaticJsonDocument<500> JsonDoc;
+        String typeDevice = CA_device[pipeNum - 1].type;            // get type of device recevie
+        JsonDoc["type"] = typeDevice;                               // Json type
+        JsonDoc["id"] = CA_device[pipeNum - 1].id;                  // Json id , it help on esp get index device in EEPROM 
 
-    //         StaticJsonDocument<500> JsonDoc;
-    //         JsonDoc["type"] = "CA-SS02";
-    //         JsonDoc["auto"] = Device_2_HC[0];
-    //         JsonDoc["delayTime"] = Device_2_HC[1] / 1000;
-    //         JsonDoc["state"] = Device_2_HC[2];
-    //         String payload;
-    //         serializeJson(JsonDoc, payload);
-    //         Serial3.print(payload);
-    //         Serial3.println();
-    //         break;
-    //     }
+        if (typeDevice.equals("SR"))
+        {
+            JsonDoc["button1"] = CA_device[pipeNum - 1].value[0] = (boolean)Device_2_HC[0]; //Json button 1 and store 
+            JsonDoc["button2"] = CA_device[pipeNum - 1].value[1] = (boolean)Device_2_HC[1]; //Json button 2 and store
+            JsonDoc["button3"] = CA_device[pipeNum - 1].value[2] = (boolean)Device_2_HC[2]; //Json button 3 and store
+            String payload;
+            serializeJson(JsonDoc, payload);    //encode Json to String 
+            Serial.println(payload);
+            Serial3.print(payload);             // send String Json to ESP
+            Serial3.print('\r');
+        }
 
-    //     case 4: // AQI
-    //     {
-    //         String output;
-    //         output += F("PipeNum: ");
-    //         output += pipeNum;
-    //         output += F("\t Temperature : ");
-    //         output += Device_2_HC[0];
-    //         output += F(" 0C \t Humidity : ");
-    //         output += Device_2_HC[1];
-    //         output += F(" % \t Air Quality : ");
-    //         output += Device_2_HC[2];
-    //         output += F(" ppm");
-    //         // Serial.println(output);
+        if (typeDevice.equals("SS02"))
+        {
+            JsonDoc["auto"] = CA_device[pipeNum - 1].value[0] = (boolean)Device_2_HC[0];    //Json auto mode and store
+            JsonDoc["state"] = CA_device[pipeNum - 1].value[1] = (boolean)Device_2_HC[1];   //Json state and store
+            String payload;
+            serializeJson(JsonDoc, payload);    //encode Json to String
+            Serial.println(payload);
+            Serial3.print(payload);             //send String Json to ESP
+            Serial3.print('\r');
+        }
 
-    //         StaticJsonDocument<500> JsonDoc;
-    //         JsonDoc["type"] = "CA-SS03";
-    //         JsonDoc["temperture"] = Device_2_HC[0];
-    //         JsonDoc["humidity"] = Device_2_HC[1];
-    //         JsonDoc["AQI"] = Device_2_HC[2];
-    //         String payload;
-    //         serializeJson(JsonDoc, payload);
-    //         Serial3.print(payload);
-    //         Serial3.println();
-    //         break;
-    //     }
+        if (typeDevice.equals("SS03"))
+        {
+            JsonDoc["temperature"] = CA_device[pipeNum - 1].value[0] = (float)Device_2_HC[0];   //Json temperture and store
+            JsonDoc["humidity"] = CA_device[pipeNum - 1].value[1] = (float)Device_2_HC[1];      //Json humidity and store
+            JsonDoc["AQI"] = CA_device[pipeNum - 1].value[2] = (float)Device_2_HC[2];           //Json AQI and store
+            String payload;
+            serializeJson(JsonDoc, payload);    //encode Json to String
+            Serial.println(payload);
+            Serial3.print(payload);             //send String Json to ESP
+            Serial3.print('\r');
+        }
 
-    //     case 5: // flame & gas
-    //     {
-    //         String output;
-    //         output += F("PipeNum: ");
-    //         output += pipeNum;
-    //         output += F("\t Flame : ");
-    //         output += Device_2_HC[0];
-    //         output += F("\t gas : ");
-    //         output += Device_2_HC[1];
-    //         output += F("\t warning : ");
-    //         output += Device_2_HC[2];
-    //         // Serial.println(output);
+        if (typeDevice.equals("SS04"))
+        {
+            JsonDoc["flameWarning"] = CA_device[pipeNum - 1].value[0] = (boolean)Device_2_HC[0];    //Json flameWarning and store
+            JsonDoc["gasWarning"] = CA_device[pipeNum - 1].value[1] = (boolean)Device_2_HC[1];      //Json gasWarning and store  
+            String payload;
+            serializeJson(JsonDoc, payload);    //encode Json to String
+            Serial.println(payload);
+            Serial3.print(payload);             //send String Json to ESP
+            Serial3.print('\r');
+        }
+    }
+//============================= End Listen RF =============================
 
-    //         StaticJsonDocument<500> JsonDoc;
-    //         JsonDoc["type"] = "CA-SS04";
-    //         JsonDoc["flame"] = Device_2_HC[0];
-    //         JsonDoc["gas"] = Device_2_HC[1];
-    //         JsonDoc["warning"] = Device_2_HC[2];
-    //         String payload;
-    //         serializeJson(JsonDoc, payload);
-    //         Serial3.print(payload);
-    //         Serial3.println();
-    //         break;
-    //     }
+//====================== Listen Command From MQTT =========================
 
-    //     default:
-    //         break;
-    //     }
-    // } // end condition of radio RF
-    //   // Serial.println("Delay time is starting");
-    // delay(10);
+    if (Serial3.available())
+    {
+        String payload;
+        payload = Serial3.readStringUntil('\r');    //get data from esp
+        Serial.println(payload);
+        radio.stopListening();                      // stop listen for transmite
 
-    // //==============Listen Control Command From MQTT=======================
+        StaticJsonDocument<500> JsonDoc;
+        deserializeJson(JsonDoc, payload);
+        String productID = JsonDoc["productID"];    // get productID from ESP
+        int index;
+        for (int i = 0; i < numberOfDevice; i++)    //find index CA_device by productID
+        {
+            if (productID.equals(CA_device[i].productId))
+            {
+                index = i;
+            }
+        }
 
-    // if (Serial3.available())
-    // {
-    //     String payload;
-    //     payload = Serial3.readStringUntil('\r');
-    //     Serial.println(payload);
-    //     radio.stopListening();
+        String type = JsonDoc["type"];          //get type for decode 
 
-    //     StaticJsonDocument<500> JsonDoc;
-    //     deserializeJson(JsonDoc, payload);
-    //     String type = JsonDoc["type"];
+        if (type.equals("CA_SR"))
+        {
+            String key[numberOfKey] = {"button1", "button2", "button3"};    // array key in Json
 
-    //     if (type == "CA-SR1c")
-    //     {
-    //         int buttonIndex = JsonDoc["button"];
-    //         boolean state   = JsonDoc["state"];
+            Serial.println("Receive control command for CA_SR: ");
+            for (int i = 0; i < numberOfKey; i++)   // get value from Json
+            {
+                JsonVariant checkContainKey = JsonDoc[key[i]];
+                if (!checkContainKey.isNull())
+                {
+                    CA_device[index].value[i] = checkContainKey.as<float>();
+                    Serial.println(CA_device[index].value[i]);
+                }
+                else
+                {
+                    Serial.println("NULL");
+                }
+            }
 
-    //         Serial.println("Receive control command from CA-SWR2: ");
-    //         Serial.print("Button ");
-    //         Serial.print(buttonIndex);
-    //         Serial.print(" : ");
-    //         Serial.println(state);
+            radio.openWritingPipe(CA_device[index].RF_Channel);     //start transmit
+            radio.write(&CA_device[index].value, sizeof(CA_device[index].value));   // send command data from MQTT
+        }
 
-    //         HC_2_Device[buttonIndex - 1] = state;
-    //         radio.openWritingPipe(address[0]);
-    //         radio.write(&HC_2_Device, sizeof(HC_2_Device));
-    //     }
+        if (type.equals("CA_SS02"))
+        {
+            String key[numberOfKey] = {"auto", "delayTime"};   // array key in Json
 
-    //     if (type == "CA-SR2c")
-    //     {
-    //         boolean button_1 = JsonDoc["button_1"];
-    //         boolean button_2 = JsonDoc["button_2"];
+            Serial.println("Receive control command for CA_SS02: ");
+            for (int i = 0; i < numberOfKey; i++)       // get value from Json
+            {
+                JsonVariant checkContainKey = JsonDoc[key[i]];
+                if (!checkContainKey.isNull())
+                {
+                    CA_device[index].value[i] = checkContainKey.as<float>();
+                    Serial.println(CA_device[index].value[i]);
+                }
+                else
+                {
+                    Serial.println("NULL");
+                }
+            }
 
-    //         Serial.println("Receive control command from CA-SWR2: ");
-    //         Serial.print("Button 1: ");
-    //         Serial.println(button_1);
-    //         Serial.print("Button 2: ");
-    //         Serial.println(button_2);
+            radio.openWritingPipe(CA_device[index].RF_Channel);     //start transmit
+            radio.write(&CA_device[index].value, sizeof(CA_device[index].value));   // send command data from MQTT
+        }
 
-    //         HC_2_Device[0] = button_1;
-    //         HC_2_Device[1] = button_2;
-    //         radio.openWritingPipe(address[0]);
-    //         radio.write(&HC_2_Device, sizeof(HC_2_Device));
-    //     }
+        if (type.equals("CA_SS04"))
+        {
+            String key[numberOfKey] = {"offWarning"};   // array key in Json
 
-    //     if (type == "CA-SR3c")
-    //     {
-    //         Serial.println("Receive control command from CA-SWR3: ");
+            Serial.println("Receive control command for CA_SS04: ");
+            for (int i = 0; i < numberOfKey; i++)       // get value from Json
+            {
+                JsonVariant checkContainKey = JsonDoc[key[i]];
+                if (!checkContainKey.isNull())
+                {
+                    CA_device[index].value[i] = checkContainKey.as<float>();
+                    Serial.println(CA_device[index].value[i]);
+                }
+                else
+                {
+                    Serial.println("NULL");
+                }
+            }
 
-    //         JsonVariant checkContainKey = JsonDoc["button1"];
-    //         Serial.print("Button 1: ");
-    //         if(!checkContainKey.isNull()){
-    //             HC_2_Device[0] = checkContainKey.as<float>();
-    //             Serial.println(HC_2_Device[0]);
-
-    //         }else Serial.println("NULL");
-
-    //         checkContainKey = JsonDoc["button2"];
-    //         Serial.print("Button 2: ");
-    //         if(!checkContainKey.isNull()){
-    //             HC_2_Device[1] = checkContainKey.as<float>();
-    //             Serial.println(HC_2_Device[1]);
-
-    //         }else Serial.println("NULL");
-
-    //         checkContainKey = JsonDoc["button3"];
-    //         Serial.print("Button 3: ");
-    //         if(!checkContainKey.isNull()){
-    //             HC_2_Device[2] = checkContainKey.as<float>();
-    //             Serial.println(HC_2_Device[2]);
-
-    //         }else Serial.println("NULL");
-
-    //         uint64_t address_RF = JsonDoc["RF"];
-
-    //         radio.openWritingPipe(address_RF);
-    //         radio.write(&HC_2_Device, sizeof(HC_2_Device));
-    //     }
-
-    //     if (type == "CA-SS02c")
-    //     {
-    //         boolean state = JsonDoc["auto"];
-    //         uint16_t delayTime = JsonDoc["delayTime"];
-    //         Serial.print("CA-SS02 light : ");
-    //         Serial.print(state);
-    //         Serial.print("\t delay time set in : ");
-    //         Serial.println(delayTime);
-    //         HC_2_Device[0] = state;
-    //         HC_2_Device[1] = delayTime * 1000; // đôi lúc không gửi delayTime
-    //         radio.openWritingPipe(address[2]);
-    //         radio.write(&HC_2_Device, sizeof(HC_2_Device));
-    //         delay(5);
-    //     }
-
-    //     if (type == "CA-SS04c")
-    //     {
-    //         boolean warning = JsonDoc["warning"];
-    //         Serial.print("CA-SS04 warning : ");
-    //         Serial.println(warning);
-    //         HC_2_Device[0] = warning;
-    //         radio.openWritingPipe(address[4]);
-    //         radio.write(&HC_2_Device, sizeof(HC_2_Device));
-    //         delay(5);
-    //     }
-    // } // end condition of communicate to ESP
-    // // Serial.println("Delay Time is end");
+            radio.openWritingPipe(CA_device[index].RF_Channel);     //start transmit
+            radio.write(&CA_device[index].value, sizeof(CA_device[index].value));   // send command data from MQTT
+        }
+    }
+//====================== End Listen Command From MQTT =========================
+    delay(200);
 }
 
 void initial()
 {
+    StartUp();                  //show led line at start up mode
+    pixels.setBrightness(10);   
     while (1)
     {
+        processing();       // make led line in processing mode 
+
         if (Serial3.available())
         {
-            String payload = Serial3.readStringUntil('\r');
+            String payload = Serial3.readStringUntil('\r');   //get information from ESP
             StaticJsonDocument<300> JsonDoc;
             deserializeJson(JsonDoc, payload);
-            String command = JsonDoc["command"];
+            String command = JsonDoc["command"];        // get command 
             Serial.print("ESP: ");
             if (command.length() > 4)
             {
@@ -314,23 +282,24 @@ void initial()
             else
                 Serial.println(payload);
 
-            if(payload == "Wrong"){
+            if (payload == "Wrong")
+            {
                 Serial.print("MEGA: ");
                 Serial.println("Everything is alright");
             }
 
-            if (command == "Number of device")
+            if (command == "Number_Of_Device")
             {
                 numberOfDevice = JsonDoc["value"];
                 Serial.println(numberOfDevice);
                 Serial.println();
             }
 
-            if (command == "Data from user")
+            if (command == "Data_Of_Device")
             {
                 int id = JsonDoc["id"];
                 Serial.println(id);
-                if (CA_device[index].id != id && id != 1)
+                if (CA_device[index].id != id && id != 1)   // counter index
                 {
                     index++;
                 }
@@ -339,32 +308,38 @@ void initial()
 
                 CA_device[index].id = id;
 
-                String payloadPID = JsonDoc["productId"];
-                payloadPID.toCharArray(CA_device[index].productId, payloadPID.length() + 1);
+                String payloadPID = JsonDoc["productId"];   // get product id from Json
+                payloadPID.toCharArray(CA_device[index].productId, payloadPID.length() + 1); // store data
                 Serial.print("productId : ");
                 Serial.println(CA_device[index].productId);
 
-                String payloadRF = JsonDoc["RFchannel"];
-                CA_device[index].RF_Chanel = stringToUint64(payloadRF);
+                String typeDevice = JsonDoc["type"];   // get type from Json
+                typeDevice.toCharArray(CA_device[index].type, typeDevice.length() + 1); // store data
+                Serial.print("Type : ");
+                Serial.println(CA_device[index].type);
+
+                String payloadRF = JsonDoc["RFchannel"];   // get RF channel from Json
+                CA_device[index].RF_Channel = stringToUint64(payloadRF); // translate String to Uint_64t and store data
                 Serial.print("RF_channel : ");
-                Serial.println(PriUint64<DEC>(CA_device[0].RF_Chanel));
+                Serial.println(PriUint64<DEC>(CA_device[index].RF_Channel));
                 Serial.println();
             }
 
-            if (command == "end of data user")
+            if (command == "End_Data_Device")
             {
                 Serial.println();
                 Serial.print("Mega: ");
+                Serial.println();
                 Serial.println("check data");
-                delay(1000);
-                for (int i = 0; i < numberOfDevice; i++)
+                Serial.println();
+                for (int i = 0; i < numberOfDevice; i++)    //check all data just got  
                 {
-                    Serial.print("id of device : ");
+                    Serial.print("MEGA: id of device : ");
                     Serial.println(CA_device[i].id);
-                    Serial.print("productId of device : ");
+                    Serial.print("MEGA: productId of device : ");
                     Serial.println(CA_device[i].productId);
-                    Serial.print("RF_chanel of device : ");
-                    Serial.println(PriUint64<DEC>(CA_device[i].RF_Chanel));
+                    Serial.print("MEGA: RF_channel of device : ");
+                    Serial.println(PriUint64<DEC>(CA_device[i].RF_Channel));
                     Serial.println();
 
                     String payload_check;
@@ -374,8 +349,11 @@ void initial()
                     serializeJson(JsonDoc, payload_check);
                     Serial3.print(payload_check);
                     String payloadOK;
-                    while (1)
+                    while (1)       // waitting for ESP check data
                     {
+
+                        processing();
+
                         if (Serial3.available())
                         {
                             payloadOK = Serial3.readStringUntil('\r');
@@ -392,21 +370,24 @@ void initial()
                         delay(200);
                     }
                     Serial.println();
-                    delay(2000);
+                    delay(200);
                 }
                 Serial3.print("\r");
-                Serial3.print("Check Done");
+                Serial3.print("Check_Done");
                 Serial3.print("\r");
             }
 
             if (command == "Finish")
             {
                 Serial.println("\nMEGA: Show up");
-                return;
+                break;
             }
         }
         delay(100);
     }
+
+    ChikaStartUp();     // Chika Light mode 
+    normalMode();       // State mode 
 }
 
 uint64_t stringToUint64(String input)
@@ -488,3 +469,141 @@ uint64_t iDontKnow(int exp)
         break;
     }
 }
+
+//============================================================================================================
+
+//================================= Adafruit_NeoPixel Start Up - BEGIN RANGE =================================//
+void swap(int &a, int &b)
+{
+    int temp = a;
+    a = b;
+    b = temp;
+}
+
+// Right to Left
+void shiftLeft(int a[])
+{
+    for (int i = 0; i < 8; i++)
+    {
+        swap(a[i], a[i + 1]);
+    }
+}
+
+// Left to Right
+void shiftRight(int a[])
+{
+    for (int i = 8; i > 0; i--)
+    {
+        swap(a[i], a[i - 1]);
+    }
+}
+
+void pixelsOff()
+{
+    for (int i = 0; i < 8; i++)
+    {
+        pixels.setPixelColor(i, 0, 0, 0);
+    }
+    pixels.show();
+}
+
+void FirstStartUp()
+{
+    for (int i = 0; i < 8; i++)
+    {
+        pixels.setBrightness(pow(2, i) - 1);
+        for (int j = 0; j < 7; j++)
+        {
+            pixels.setPixelColor(j, FS_red[i], FS_green[i], FS_blue[i]);
+            shiftLeft(FS_red);
+            shiftLeft(FS_green);
+            shiftLeft(FS_blue);
+        }
+        pixels.setPixelColor(7, FS_red[i], FS_green[i], FS_blue[i]);
+        pixels.show();
+        delay(80);
+    }
+
+    for (int i = 7; i > 0; i--)
+    {
+        pixels.setBrightness(pow(2, i) - 1);
+        for (int j = 0; j < 7; j++)
+        {
+            pixels.setPixelColor(j, FS_red[i], FS_green[i], FS_blue[i]);
+            shiftLeft(FS_red);
+            shiftLeft(FS_green);
+            shiftLeft(FS_blue);
+        }
+        pixels.setPixelColor(7, FS_red[i], FS_green[i], FS_blue[i]);
+        pixels.show();
+        delay(80);
+    }
+}
+
+void ChikaStartUp()
+{
+    for (int i = 0; i < 9; i++)
+    {
+        pixels.setBrightness(pow(2, i) - 1);
+        for (int j = 0; j < 7; j++)
+        {
+            pixels.setPixelColor(j, CS_red[i], CS_green[i], CS_blue[i]);
+            shiftRight(CS_red);
+            shiftRight(CS_green);
+            shiftRight(CS_blue);
+        }
+        pixels.setPixelColor(7, CS_red[i], CS_green[i], CS_blue[i]);
+        pixels.show();
+        delay(100);
+    }
+
+    for (int i = 7; i > 0; i--)
+    {
+        pixels.setBrightness(pow(2, i) - 1);
+        for (int j = 0; j < 7; j++)
+        {
+            pixels.setPixelColor(j, CS_red[i], CS_green[i], CS_blue[i]);
+            shiftRight(CS_red);
+            shiftRight(CS_green);
+            shiftRight(CS_blue);
+        }
+        pixels.setPixelColor(7, CS_red[i], CS_green[i], CS_blue[i]);
+        pixels.show();
+        delay(100);
+    }
+}
+
+void StartUp()
+{
+    FirstStartUp();
+    delay(50);
+    ChikaStartUp();
+    delay(200);
+    pixelsOff();
+    delay(500);
+}
+
+void normalMode()
+{
+    pixels.setPixelColor(7, 0, 0, 255);
+    pixels.setPixelColor(6, 0, 0, 255);
+    pixels.setPixelColor(5, 0, 0, 255);
+    pixels.setPixelColor(4, 0, 0, 255);
+    pixels.setPixelColor(3, 0, 0, 255);
+    pixels.setPixelColor(2, 0, 255, 0);
+    pixels.setPixelColor(1, 0, 255, 0);
+    pixels.setPixelColor(0, 255, 0, 0);
+    pixels.setBrightness(30);
+    pixels.show();
+}
+
+void processing()
+{
+    for (int i = 0; i < 8; i++)
+    {
+        pixels.setPixelColor(i, proceed[i], proceed[i], proceed[i]);
+        pixels.show();
+    }
+    shiftRight(proceed);
+}
+//================================= Adafruit_NeoPixel Start Up - END RANGE =================================//

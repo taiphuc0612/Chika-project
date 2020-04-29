@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
 #include <PubSubClient.h>
 #include <Ticker.h>
 #include <ArduinoJson.h>
@@ -25,6 +26,7 @@ int funDelay = 2000;
 boolean buttonActive = false;
 
 char payload_char[500];
+String tokenUser;
 
 const char *mqtt_server = "chika.gq";
 const int mqtt_port = 2502;
@@ -32,27 +34,22 @@ const char *mqtt_user = "chika";
 const char *mqtt_pass = "2502";
 
 const char *HC_ID = "f7a3bde5-5a85-470f-9577-cdbf3be121d4";
-// const char *CA_SS00 = "f7a3bde5-5a85-470f-9577-cdbf3be121d4";
-// const char *CA_SR = "2b92934f-7a41-4ce1-944d-d33ed6d97e13";
-// const char *CA_SR2 = "4a0bfbfe-efff-4bae-927c-c8136df70333";
-// const char *CA_SR3 = "ebb2464e-ba53-4f22-aa61-c76f24d3343d";
-// const char *CA_SS02 = "9d860c55-7899-465b-9fb3-195ae0c0959a";
-// const char *CA_SS03 = "1dd591c2-9080-4dcc-9c14-d9ecf8561248";
-// const char *CA_SS04 = "d5ae3121-fb7b-4198-bbb5-a6fc67566452";
 
 Ticker ticker;
 WiFiClient esp;
 PubSubClient client(esp);
 DHT SS00(DHT_pin, DHT_type);
+HTTPClient httpClient;
 
 typedef struct
 {
-  int id;
-  char productId[100];
-  uint64_t RF_Chanel;
-} device __attribute__((packed));
+  int id;                 // address device in EEPROM
+  char productId[100];    // ID of product and topic too
+  char RF_Chanel[50];     // channel for communicate with orther device using RF signal
+  char type[20];          // type of device (SR, SS01, SS0X, ....)
+} device __attribute__((packed));   // stuct of Chika device help store data esay for managing (and I haven't known "attribute((packed))" yet :D )
 
-device CA_device[20];
+device CA_device[20];   //We have 20 Chika device and it's maxium from now :D
 
 void tick();
 void tick2();
@@ -65,6 +62,7 @@ void loadDataFromEEPROM();
 void loadDataFromServer();
 void initial();
 int checkDataID(int id);
+String httpGET(HTTPClient &http, String address, String token);
 
 void setup()
 {
@@ -104,120 +102,100 @@ void setup()
     Serial.print(WiFi.localIP());
     Serial.print('\r');
   }
-
-  loadDataFromServer();
-  initial();
-
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
+
+  reconnect();    // Need connect to MQTT for getting token user
+
+  initial();      // proceed reload data - get data of device user having from server  
+
 }
 
 void loop()
 {
-  delay(3000);
+
   //longPress();
-  // if (WiFi.status() == WL_CONNECTED)
-  // {
-  //   digitalWrite(ledB, HIGH);
-  //   digitalWrite(ledR, LOW);
-  //   if (client.connected())
-  //   {
-  //     client.loop();
-  //     // do something here
-  //     timer_sendTempHumi++;
-  //     if (timer_sendTempHumi >= 60)
-  //     {
-  //       timer_sendTempHumi = 0;
-  //       float h = SS00.readHumidity();
-  //       float t = SS00.readTemperature();
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    digitalWrite(ledB, HIGH);
+    digitalWrite(ledR, LOW);
+    if (client.connected())
+    {
+      client.loop();
+      // do something here
+      timer_sendTempHumi++;
+      if (timer_sendTempHumi >= 60)
+      {
+        timer_sendTempHumi = 0;
+        float h = SS00.readHumidity();
+        float t = SS00.readTemperature();
 
-  //       String sendTempHumi;
-  //       char payload_sendTempHumi[300];
-  //       StaticJsonDocument<300> JsonDoc;
-  //       JsonDoc["type"] = "CA-SS00";
-  //       JsonDoc["temperture"] = t;
-  //       JsonDoc["humidity"] = h;
-  //       serializeJson(JsonDoc, sendTempHumi);
-  //       sendTempHumi.toCharArray(payload_sendTempHumi, sendTempHumi.length() + 1);
-  //       client.publish(HC_ID, payload_sendTempHumi, true);
-  //     }
-  //     if (Serial.available())
-  //     {
-  //       String payload_MEGA = Serial.readStringUntil('\r');
-  //       // Serial.println(payload);
+        String sendTempHumi;
+        char payload_sendTempHumi[300];
+        StaticJsonDocument<300> JsonDoc;
+        JsonDoc["type"] = "CA-SS00";
+        JsonDoc["temperture"] = t;
+        JsonDoc["humidity"] = h;
+        serializeJson(JsonDoc, sendTempHumi);
+        sendTempHumi.toCharArray(payload_sendTempHumi, sendTempHumi.length() + 1);
+        client.publish(HC_ID, payload_sendTempHumi, false);
+      }
+      if (Serial.available())
+      {
+        String payload_MEGA = Serial.readStringUntil('\r');
+        // Serial.println(payload);
 
-  //       StaticJsonDocument<500> JsonDoc;
-  //       deserializeJson(JsonDoc, payload_MEGA);
-  //       payload_MEGA.toCharArray(payload_char, payload_MEGA.length() + 1);
-  //       String type = JsonDoc["type"];
+        StaticJsonDocument<500> JsonDoc;
+        deserializeJson(JsonDoc, payload_MEGA);
+        payload_MEGA.toCharArray(payload_char, payload_MEGA.length() + 1);
 
-  //       if (type == "CA-SWR1")
-  //       {
-  //         client.publish(CA_SR, payload_char);
-  //       }
-  //       else if (type == "CA-SWR2")
-  //       {
-  //         client.publish(CA_SR2, payload_char);
-  //       }
-  //       else if (type == "CA-SWR3")
-  //       {
-  //         client.publish(CA_SR3, payload_char);
-  //       }
-  //       if (type == "CA-SS02s")
-  //       {
-  //         client.publish(CA_SS02, payload_char);
-  //       }
-  //       if (type == "CA-SS03s")
-  //       {
-  //         client.publish(CA_SS03, payload_char);
-  //       }
-  //       if (type == "CA-SS04s")
-  //       {
-  //         client.publish(CA_SS04, payload_char);
-  //       }
-  //     }
-  //   }
-  //   else
-  //   {
-  //     reconnect();
-  //   }
-  // }
-  // else
-  // {
-  //   Serial.println("WiFi Connected Fail");
-  //   WiFi.reconnect();
-  //   digitalWrite(ledB, LOW);
-  //   boolean state = digitalRead(ledR);
-  //   digitalWrite(ledR, !state);
-  // }
-  // delay(5);
+        int id_device = JsonDoc["id"];
+        int index = checkDataID(id_device);
+        client.publish(CA_device[index].productId, payload_char, false);
+      }
+    }
+    else
+    {
+      reconnect();
+    }
+  }
+  else
+  {
+    Serial.println("WiFi Connected Fail");
+    WiFi.reconnect();
+    digitalWrite(ledB, LOW);
+    boolean state = digitalRead(ledR);
+    digitalWrite(ledR, !state);
+  }
+  delay(5);
 }
+
+//==============================MQTT==============================
 
 void reconnect()
 {
-  Serial.println("Attempting MQTT connection ...");
+  Serial.print("Attempting MQTT connection ...");
+  Serial.print('\r');
   String clientId = "ESP8266Client-testX";
   clientId += String(random(0xffff), HEX);
   if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass))
   {
-    Serial.println("connected");
+    client.subscribe(HC_ID);
+    Serial.print("connected");
+    Serial.print('\r');
+
     for (int i = 0; i < numberOfDevice; i++)
     {
       client.subscribe(CA_device[i].productId);
     }
-
-    // client.subscribe(CA_SR);
-    // client.subscribe(CA_SR2);
-    // client.subscribe(CA_SR3);
-    // client.subscribe(CA_SS02);
-    // client.subscribe(CA_SS03);
-    // client.subscribe(CA_SS04);
   }
   else
   {
     Serial.print("MQTT Connected Fail, rc = ");
     Serial.print(client.state());
-    Serial.println("try again in 5 seconds");
+    Serial.print('\r');
+    Serial.print("try again in 5 seconds");
+    Serial.print('\r');
   }
 }
 
@@ -226,50 +204,76 @@ void callback(char *topic, byte *payload, unsigned int length)
   // Serial.print("Message arrived [");
   // Serial.print(topic);
   // Serial.print("] ");
-  // String data;
-  // String mtopic = (String)topic;
+  String data;
+  String mtopic = (String)topic;
 
   for (uint16_t i = 0; i < length; i++)
   {
-    Serial.print((char)payload[i]);
+    data += (char)payload[i];
   }
-  Serial.println();
+
+  if (mtopic == HC_ID)
+  {
+    tokenUser = data;
+  }
+
+  for(int i = 0 ; i < numberOfDevice ; i ++)
+  {
+    if(mtopic.equals(CA_device[i].productId))
+    {
+      StaticJsonDocument<500> JsonDoc;
+      deserializeJson(JsonDoc, data);
+      JsonDoc["productID"] = mtopic;
+      String payload;
+      serializeJson(JsonDoc,payload);
+      Serial.print(payload);
+      Serial.print('\r');
+    }
+  }
 }
+
+//====================================================================
+
+//============================initial=================================
 
 void initial()
 {
+  loadDataFromServer();
+
   String payload;
   EEPROM.begin(4095);
   numberOfDevice = EEPROM.read(0);
   EEPROM.end();
   StaticJsonDocument<300> JsonDoc;
-  JsonDoc["command"] = "Number of device";
+  JsonDoc["command"] = "Number_Of_Device";
   JsonDoc["value"] = numberOfDevice;
   serializeJson(JsonDoc, payload);
   Serial.print(payload);
   Serial.print('\r');
   delay(2000);
 
-  if (numberOfDevice <= 0)
-  {
-    // Serial.println("need sever");
-    loadDataFromServer(); // if haven't data form HC start request to sever
-  }
-  else
-  {
-    // Serial.println("no need sever");
-    loadDataFromEEPROM();
-  }
+  // if (numberOfDevice <= 0)
+  // {
+  //   // Serial.println("need sever");
+  //   loadDataFromServer(); // if haven't data form HC start request to sever
+  // }
+  // else
+  // {
+  //   // Serial.println("no need sever");
+  //   loadDataFromEEPROM();
+  // }
 
   for (int i = 0; i < numberOfDevice; i++)
   {
     payload.clear();
     JsonDoc.clear();
-    JsonDoc["command"] = "Data from user";
+    JsonDoc["command"] = "Data_Of_Device";
     JsonDoc["id"] = CA_device[i].id;
+    JsonDoc["type"] = CA_device[i].type;
     JsonDoc["productId"] = CA_device[i].productId;
-    JsonDoc["RFchannel"] = uint64ToString(CA_device[i].RF_Chanel);
+    JsonDoc["RFchannel"] = CA_device[i].RF_Chanel;
     serializeJson(JsonDoc, payload);
+
     Serial.print(payload);
     Serial.print('\r');
     delay(2000);
@@ -277,7 +281,8 @@ void initial()
 
   payload.clear();
   JsonDoc.clear();
-  JsonDoc["command"] = "end of data user";
+  JsonDoc["command"] = "End_Data_Device";
+  delay(200);
   serializeJson(JsonDoc, payload);
   Serial.print(payload);
   Serial.print('\r');
@@ -287,7 +292,7 @@ void initial()
     if (Serial.available())
     {
       String payload_check = Serial.readStringUntil('\r');
-      if (payload_check == "Check Done")
+      if (payload_check == "Check_Done")
         break;
       else
       {
@@ -323,20 +328,37 @@ void loadDataFromServer()
 {
   // get information device from sever
 
-  String CA1 = "2b92934f-7a41-4ce1-944d-d33ed6d97e13";
-  String CA2 = "4a0bfbfe-efff-4bae-927c-c8136df70333";
-  String CA3 = "ebb2464e-ba53-4f22-aa61-c76f24d3343d";
+  //get token from MQTT
+  reconnect();
+  while (1)
+  {
+    delay(100);
+    client.loop();
+    if (tokenUser.length() > 4)
+      break;
+  }
 
-  CA1.toCharArray(CA_device[0].productId, CA1.length() + 1);
-  CA_device[0].RF_Chanel = 1002502019001;
+  Serial.print(tokenUser);
+  Serial.print('\r');
+  //Using token to get data from server
+  String dataUser = httpGET(httpClient, "http://chika-server.herokuapp.com/product/rf", tokenUser);
 
-  CA2.toCharArray(CA_device[1].productId, CA2.length() + 1);
-  CA_device[1].RF_Chanel = 1002502019002;
+  StaticJsonDocument<1000> JsonDoc;
+  deserializeJson(JsonDoc, dataUser);
 
-  CA3.toCharArray(CA_device[2].productId, CA3.length() + 1);
-  CA_device[2].RF_Chanel = 1002502019003;
+  numberOfDevice = JsonDoc.size();
 
-  numberOfDevice = 3;
+  for (int i = 0; i < JsonDoc.size(); i++)
+  {
+    String CA_product = JsonDoc[i]["id"];
+    CA_product.toCharArray(CA_device[i].productId, CA_product.length() + 1);
+    String CA_rfChannel = JsonDoc[i]["rfChannel"];
+    CA_rfChannel.toCharArray(CA_device[i].RF_Chanel, CA_rfChannel.length() + 1);
+    String CA_type = JsonDoc[i]["type"];
+    CA_type.toCharArray(CA_device[i].type, CA_type.length() + 1);
+    client.subscribe(CA_device[i].productId);
+    delay(400);
+  }
 
   // start store data to EEPROM
   EEPROM.begin(4095);
@@ -345,8 +367,8 @@ void loadDataFromServer()
   {
     CA_device[i].id = address;
     EEPROM.put(address, CA_device[i]);
-    delay(200);
     address += sizeof(CA_device[i]);
+    delay(200);
   }
   EEPROM.write(0, numberOfDevice);
   EEPROM.commit();
@@ -377,6 +399,9 @@ int checkDataID(int id)
   return -1;
 }
 
+//========================================================================================
+
+//===================================SmartConfig==========================================
 void tick()
 {
   boolean state = digitalRead(ledR);
@@ -449,4 +474,35 @@ void longPress()
   {
     buttonActive = false;
   }
+}
+
+//============================================================================
+
+//============================HTTP requests method============================
+
+String httpGET(HTTPClient &http, String address, String token)
+{
+  String payload;
+  Serial.print("GET Method/Procedure");
+  Serial.print('\r');
+  // Serial.println(token);
+  http.begin(address);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", token);
+
+  int httpCode = http.GET();
+  if (httpCode > 0)
+  {
+    payload = http.getString();
+    // Serial.println(payload);
+  }
+  else
+  {
+    Serial.print("Parsing GET procedure fail");
+    Serial.print('\r');
+    return "Fail";
+  }
+
+  http.end();
+  return payload;
 }
