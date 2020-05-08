@@ -127,8 +127,9 @@ void loop()
     {
       client.loop();
       // do something here
+      // ESP send data temperture and humidity per 5 sencond
       timer_sendTempHumi++;
-      if (timer_sendTempHumi >= 2000)
+      if (timer_sendTempHumi >= 500)
       {
         timer_sendTempHumi = 0;
         float h = SS00.readHumidity();
@@ -141,23 +142,26 @@ void loop()
         JsonDoc["temperture"] = t;
         JsonDoc["humidity"] = h;
         serializeJson(JsonDoc, sendTempHumi);
-        Serial.print(sendTempHumi);
+        Serial.print(sendTempHumi); // ESP send data to MEGA
         Serial.print('\r');
         sendTempHumi.toCharArray(payload_sendTempHumi, sendTempHumi.length() + 1);
-        client.publish(HC_ID, payload_sendTempHumi, false);
+        client.publish(HC_ID, payload_sendTempHumi, false); // ESP send data to MQTT
       }
+      //=========================================================================
+      //================MQTT send data command for Home central==================
       if (Serial.available())
       {
         String payload_MEGA = Serial.readStringUntil('\r');
 
-        JsonDoc.clear();
+        JsonDoc.clear(); // clear Object JsonStaticDocument
         deserializeJson(JsonDoc, payload_MEGA);
         payload_MEGA.toCharArray(payload_char, payload_MEGA.length() + 1);
 
         int id_device = JsonDoc["id"];
-        int index = checkDataID(id_device);
+        int index = checkDataID(id_device); // get index of array CA_device
         client.publish(CA_device[index].productId, payload_char, false);
       }
+      //==========================================================================
     }
     else
     {
@@ -172,7 +176,7 @@ void loop()
     boolean state = digitalRead(ledR);
     digitalWrite(ledR, !state);
   }
-  delay(5);
+  delay(100);
 }
 
 //==============================MQTT==============================
@@ -191,7 +195,7 @@ void reconnect()
 
     for (int i = 0; i < numberOfDevice; i++)
     {
-      client.subscribe(CA_device[i].productId);
+      client.subscribe(CA_device[i].productId);   // MQTT control RF device by productID
     }
   }
   else
@@ -219,16 +223,19 @@ void callback(char *topic, byte *payload, unsigned int length)
 
   if (mtopic == HC_ID)
   {
-    tokenUser = data;
+    tokenUser = data;   // Token for get user device on server
   }
 
   for (int i = 0; i < numberOfDevice; i++)
   {
     if (mtopic.equals(CA_device[i].productId))
     {
-      StaticJsonDocument<500> JsonDoc;
+      // Topic is product id
+      // add productID to Json sending to MEGA for controlling
+      // Helping Mega can find index of device in array stuct CA_device, hence Mega can get RF_channel to control
+      JsonDoc.clear();
       deserializeJson(JsonDoc, data);
-      JsonDoc["productID"] = mtopic;
+      JsonDoc["productID"] = mtopic;    
       String payload;
       serializeJson(JsonDoc, payload);
       Serial.print(payload);
@@ -319,8 +326,7 @@ void initial()
 
 void loadDataFromServer()
 {
-  // get information device from sever
-
+  //get information device from sever
   //get token from MQTT
   int timer = 0;
   while (1)
@@ -339,6 +345,7 @@ void loadDataFromServer()
   //Using token to get data from server
   String dataUser = httpGET(httpClient, "http://chika-server.herokuapp.com/product/rf", tokenUser);
 
+  //if GET fail using data on cache (EEPROM)
   if (dataUser.equals("Fail"))
   {
     Serial.print("Fail to get data server");
@@ -346,12 +353,14 @@ void loadDataFromServer()
     loadDataFromEEPROM();
     return;
   }
-
+  //========================================
+  // if ESP has user's device
   JsonDoc.clear();
   deserializeJson(JsonDoc, dataUser);
 
-  numberOfDevice = JsonDoc.size();
+  numberOfDevice = JsonDoc.size();    // user's device is Json array
 
+  // store data to array stuct 'device' and sudcribe topic product id at the same time
   for (int i = 0; i < JsonDoc.size(); i++)
   {
     String CA_product = JsonDoc[i]["id"];
@@ -385,6 +394,7 @@ void loadDataFromEEPROM()
   EEPROM.begin(4095);
   numberOfDevice = EEPROM.read(0);
   int address = 1;
+  // get data from EEPROM
   for (int i = 0; i < numberOfDevice; i++)
   {
     EEPROM.get(address, CA_device[i]);
