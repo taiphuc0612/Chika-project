@@ -40,16 +40,17 @@ WiFiClient esp;
 PubSubClient client(esp);
 DHT SS00(DHT_pin, DHT_type);
 HTTPClient httpClient;
+StaticJsonDocument<2000> JsonDoc;
 
 typedef struct
 {
-  int id;                 // address device in EEPROM
-  char productId[100];    // ID of product and topic too
-  char RF_Chanel[50];     // channel for communicate with orther device using RF signal
-  char type[20];          // type of device (SR, SS01, SS0X, ....)
-} device __attribute__((packed));   // stuct of Chika device help store data esay for managing (and I haven't known "attribute((packed))" yet :D )
+  int id;                         // address device in EEPROM
+  char productId[100];            // ID of product and topic too
+  char RF_Chanel[50];             // channel for communicate with orther device using RF signal
+  char type[20];                  // type of device (SR, SS01, SS0X, ....)
+} device __attribute__((packed)); // stuct of Chika device help store data esay for managing (and I haven't known "attribute((packed))" yet :D )
 
-device CA_device[20];   //We have 20 Chika device and it's maxium from now :D
+device CA_device[20]; //We have 20 Chika device and it's maxium from now :D
 
 void tick();
 void tick2();
@@ -67,7 +68,7 @@ String httpGET(HTTPClient &http, String address, String token);
 void setup()
 {
   Serial.begin(115200);
-
+  delay(4000);
   WiFi.setAutoConnect(true);   // auto connect when start
   WiFi.setAutoReconnect(true); // auto reconnect the old WiFi when leaving internet
 
@@ -76,7 +77,6 @@ void setup()
   pinMode(btn_config, INPUT); // btn_config is ready
 
   ticker.attach(1, tick2); // initial led show up
-
   uint16_t i = 0;
   while (!WiFi.isConnected()) // check WiFi is connected
   {
@@ -94,8 +94,9 @@ void setup()
   {
     ticker.detach();         // shutdown ticker
     digitalWrite(ledR, LOW); // show led
-    Serial.print("WIFI CONNECTED");
+    Serial.print("WIFI_CONNECTED");
     Serial.print('\r');
+    Serial.print("SSID: ");
     Serial.print(WiFi.SSID());
     Serial.print('\r');
     Serial.print("IP: ");
@@ -105,10 +106,13 @@ void setup()
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
 
-  reconnect();    // Need connect to MQTT for getting token user
+  while (!client.connected())
+  {
+    reconnect(); // Need connect to MQTT for getting token user
+    delay(100);
+  }
 
-  initial();      // proceed reload data - get data of device user having from server  
-
+  initial(); // proceed reload data - get data of device user having from server
 }
 
 void loop()
@@ -124,7 +128,7 @@ void loop()
       client.loop();
       // do something here
       timer_sendTempHumi++;
-      if (timer_sendTempHumi >= 60)
+      if (timer_sendTempHumi >= 2000)
       {
         timer_sendTempHumi = 0;
         float h = SS00.readHumidity();
@@ -132,20 +136,21 @@ void loop()
 
         String sendTempHumi;
         char payload_sendTempHumi[300];
-        StaticJsonDocument<300> JsonDoc;
+        JsonDoc.clear();
         JsonDoc["type"] = "CA-SS00";
         JsonDoc["temperture"] = t;
         JsonDoc["humidity"] = h;
         serializeJson(JsonDoc, sendTempHumi);
+        Serial.print(sendTempHumi);
+        Serial.print('\r');
         sendTempHumi.toCharArray(payload_sendTempHumi, sendTempHumi.length() + 1);
         client.publish(HC_ID, payload_sendTempHumi, false);
       }
       if (Serial.available())
       {
         String payload_MEGA = Serial.readStringUntil('\r');
-        // Serial.println(payload);
 
-        StaticJsonDocument<500> JsonDoc;
+        JsonDoc.clear();
         deserializeJson(JsonDoc, payload_MEGA);
         payload_MEGA.toCharArray(payload_char, payload_MEGA.length() + 1);
 
@@ -217,15 +222,15 @@ void callback(char *topic, byte *payload, unsigned int length)
     tokenUser = data;
   }
 
-  for(int i = 0 ; i < numberOfDevice ; i ++)
+  for (int i = 0; i < numberOfDevice; i++)
   {
-    if(mtopic.equals(CA_device[i].productId))
+    if (mtopic.equals(CA_device[i].productId))
     {
       StaticJsonDocument<500> JsonDoc;
       deserializeJson(JsonDoc, data);
       JsonDoc["productID"] = mtopic;
       String payload;
-      serializeJson(JsonDoc,payload);
+      serializeJson(JsonDoc, payload);
       Serial.print(payload);
       Serial.print('\r');
     }
@@ -241,10 +246,7 @@ void initial()
   loadDataFromServer();
 
   String payload;
-  EEPROM.begin(4095);
-  numberOfDevice = EEPROM.read(0);
-  EEPROM.end();
-  StaticJsonDocument<300> JsonDoc;
+  JsonDoc.clear();
   JsonDoc["command"] = "Number_Of_Device";
   JsonDoc["value"] = numberOfDevice;
   serializeJson(JsonDoc, payload);
@@ -252,21 +254,11 @@ void initial()
   Serial.print('\r');
   delay(2000);
 
-  // if (numberOfDevice <= 0)
-  // {
-  //   // Serial.println("need sever");
-  //   loadDataFromServer(); // if haven't data form HC start request to sever
-  // }
-  // else
-  // {
-  //   // Serial.println("no need sever");
-  //   loadDataFromEEPROM();
-  // }
-
   for (int i = 0; i < numberOfDevice; i++)
   {
     payload.clear();
     JsonDoc.clear();
+    delay(1000);
     JsonDoc["command"] = "Data_Of_Device";
     JsonDoc["id"] = CA_device[i].id;
     JsonDoc["type"] = CA_device[i].type;
@@ -276,13 +268,13 @@ void initial()
 
     Serial.print(payload);
     Serial.print('\r');
-    delay(2000);
+    delay(1000);
   }
 
   payload.clear();
   JsonDoc.clear();
+  delay(1000);
   JsonDoc["command"] = "End_Data_Device";
-  delay(200);
   serializeJson(JsonDoc, payload);
   Serial.print(payload);
   Serial.print('\r');
@@ -319,6 +311,7 @@ void initial()
 
   JsonDoc.clear();
   payload.clear();
+  delay(1000);
   JsonDoc["command"] = "Finish";
   serializeJson(JsonDoc, payload);
   Serial.println(payload);
@@ -329,21 +322,32 @@ void loadDataFromServer()
   // get information device from sever
 
   //get token from MQTT
-  reconnect();
+  int timer = 0;
   while (1)
   {
+    timer++;
     delay(100);
     client.loop();
     if (tokenUser.length() > 4)
       break;
+    if (timer > 100)
+    {
+      loadDataFromEEPROM();
+      return;
+    }
   }
-
-  Serial.print(tokenUser);
-  Serial.print('\r');
   //Using token to get data from server
   String dataUser = httpGET(httpClient, "http://chika-server.herokuapp.com/product/rf", tokenUser);
 
-  StaticJsonDocument<1000> JsonDoc;
+  if (dataUser.equals("Fail"))
+  {
+    Serial.print("Fail to get data server");
+    Serial.print('\r');
+    loadDataFromEEPROM();
+    return;
+  }
+
+  JsonDoc.clear();
   deserializeJson(JsonDoc, dataUser);
 
   numberOfDevice = JsonDoc.size();
@@ -377,7 +381,9 @@ void loadDataFromServer()
 
 void loadDataFromEEPROM()
 {
+  Serial.print("Load from EEPROM");
   EEPROM.begin(4095);
+  numberOfDevice = EEPROM.read(0);
   int address = 1;
   for (int i = 0; i < numberOfDevice; i++)
   {
@@ -426,7 +432,8 @@ void exitSmartConfig()
 boolean startSmartConfig()
 {
   uint16_t t = 0;
-  Serial.println("On SmartConfig ");
+  Serial.print("On_SmartConfig");
+  Serial.print('\r');
   WiFi.beginSmartConfig();
   delay(500);
   ticker.attach(0.1, tick);
@@ -434,20 +441,27 @@ boolean startSmartConfig()
   {
     t++;
     Serial.print(".");
-    delay(500);
+    Serial.print('\r');
+    delay(200);
     if (t > 100)
     {
-      Serial.println("Smart Config fail");
+      Serial.print("SmartConfig_fail");
+      Serial.print('\r');
       ticker.attach(0.5, tick);
       delay(3000);
       exitSmartConfig();
       return false;
     }
   }
-  Serial.println("WiFi connected ");
-  Serial.print("IP :");
-  Serial.println(WiFi.localIP());
-  Serial.println(WiFi.SSID());
+  Serial.print("WIFI_CONNECTED");
+  Serial.print('\r');
+  delay(1000);
+  Serial.print("SSID: ");
+  Serial.print(WiFi.SSID());
+  Serial.print('\r');
+  Serial.print("IP: ");
+  Serial.print(WiFi.localIP());
+  Serial.print('\r');
   exitSmartConfig();
   return true;
 }
@@ -483,8 +497,8 @@ void longPress()
 String httpGET(HTTPClient &http, String address, String token)
 {
   String payload;
-  Serial.print("GET Method/Procedure");
-  Serial.print('\r');
+  // Serial.print("GET Method/Procedure");
+  // Serial.print('\r');
   // Serial.println(token);
   http.begin(address);
   http.addHeader("Content-Type", "application/json");
