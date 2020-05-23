@@ -71,6 +71,7 @@ void setup()
   delay(4000);
   WiFi.setAutoConnect(true);   // auto connect when start
   WiFi.setAutoReconnect(true); // auto reconnect the old WiFi when leaving internet
+  WiFi.mode(WIFI_STA);
 
   pinMode(ledR, OUTPUT);      // led red set on
   pinMode(ledB, OUTPUT);      // led blue set on
@@ -118,7 +119,7 @@ void setup()
 void loop()
 {
 
-  //longPress();
+  longPress();
   if (WiFi.status() == WL_CONNECTED)
   {
     digitalWrite(ledB, HIGH);
@@ -129,7 +130,7 @@ void loop()
       // do something here
       // ESP send data temperture and humidity per 5 sencond
       timer_sendTempHumi++;
-      if (timer_sendTempHumi >= 500)
+      if (timer_sendTempHumi >= 80)
       {
         timer_sendTempHumi = 0;
         float h = SS00.readHumidity();
@@ -170,8 +171,10 @@ void loop()
   }
   else
   {
-    Serial.println("WiFi Connected Fail");
+    Serial.print("WiFi Connected Fail");
+    Serial.print('\r');
     WiFi.reconnect();
+    delay(200);
     digitalWrite(ledB, LOW);
     boolean state = digitalRead(ledR);
     digitalWrite(ledR, !state);
@@ -195,7 +198,7 @@ void reconnect()
 
     for (int i = 0; i < numberOfDevice; i++)
     {
-      client.subscribe(CA_device[i].productId);   // MQTT control RF device by productID
+      client.subscribe(CA_device[i].productId); // MQTT control RF device by productID
     }
   }
   else
@@ -223,7 +226,7 @@ void callback(char *topic, byte *payload, unsigned int length)
 
   if (mtopic == HC_ID)
   {
-    tokenUser = data;   // Token for get user device on server
+    tokenUser = data; // Token for get user device on server
   }
 
   for (int i = 0; i < numberOfDevice; i++)
@@ -235,7 +238,7 @@ void callback(char *topic, byte *payload, unsigned int length)
       // Helping Mega can find index of device in array stuct CA_device, hence Mega can get RF_channel to control
       JsonDoc.clear();
       deserializeJson(JsonDoc, data);
-      JsonDoc["productID"] = mtopic;    
+      JsonDoc["productID"] = mtopic;
       String payload;
       serializeJson(JsonDoc, payload);
       Serial.print(payload);
@@ -257,22 +260,22 @@ void initial()
   JsonDoc["command"] = "Number_Of_Device";
   JsonDoc["value"] = numberOfDevice;
   serializeJson(JsonDoc, payload);
+  delay(1000);
   Serial.print(payload);
   Serial.print('\r');
-  delay(2000);
+  delay(1000);
 
   for (int i = 0; i < numberOfDevice; i++)
   {
     payload.clear();
     JsonDoc.clear();
-    delay(1000);
     JsonDoc["command"] = "Data_Of_Device";
     JsonDoc["id"] = CA_device[i].id;
     JsonDoc["type"] = CA_device[i].type;
     JsonDoc["productId"] = CA_device[i].productId;
     JsonDoc["RFchannel"] = CA_device[i].RF_Chanel;
     serializeJson(JsonDoc, payload);
-
+    delay(1000);
     Serial.print(payload);
     Serial.print('\r');
     delay(1000);
@@ -280,11 +283,12 @@ void initial()
 
   payload.clear();
   JsonDoc.clear();
-  delay(1000);
   JsonDoc["command"] = "End_Data_Device";
   serializeJson(JsonDoc, payload);
+  delay(1000);
   Serial.print(payload);
   Serial.print('\r');
+  delay(1000);
 
   while (1) // check data
   {
@@ -318,10 +322,12 @@ void initial()
 
   JsonDoc.clear();
   payload.clear();
-  delay(1000);
   JsonDoc["command"] = "Finish";
   serializeJson(JsonDoc, payload);
-  Serial.println(payload);
+  delay(1000);
+  Serial.print(payload);
+  Serial.print('\r');
+  delay(1000);
 }
 
 void loadDataFromServer()
@@ -358,7 +364,7 @@ void loadDataFromServer()
   JsonDoc.clear();
   deserializeJson(JsonDoc, dataUser);
 
-  numberOfDevice = JsonDoc.size();    // user's device is Json array
+  numberOfDevice = JsonDoc.size(); // user's device is Json array
 
   // store data to array stuct 'device' and sudcribe topic product id at the same time
   for (int i = 0; i < JsonDoc.size(); i++)
@@ -442,6 +448,7 @@ void exitSmartConfig()
 boolean startSmartConfig()
 {
   uint16_t t = 0;
+  delay(500);
   Serial.print("On_SmartConfig");
   Serial.print('\r');
   WiFi.beginSmartConfig();
@@ -453,7 +460,7 @@ boolean startSmartConfig()
     Serial.print(".");
     Serial.print('\r');
     delay(200);
-    if (t > 100)
+    if (t > 200)
     {
       Serial.print("SmartConfig_fail");
       Serial.print('\r');
@@ -478,13 +485,12 @@ boolean startSmartConfig()
 
 void longPress()
 {
-  if (digitalRead(btn_config) == HIGH)
+  if (digitalRead(btn_config) == LOW)
   {
     if (buttonActive == false)
     {
       buttonActive = true;
       timer_smartConfig = millis();
-      Serial.println(timer_smartConfig);
     }
 
     if (millis() - timer_smartConfig > longPressTime)
