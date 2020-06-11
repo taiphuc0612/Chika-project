@@ -1,3 +1,9 @@
+// CA-IRX - module capture and transmit IR(inferal r) signal
+// Using raw data form remote for storing on server and controlling IR device. 
+// Connecting MQTT for communicate with app and android
+// make by Tai Phuc
+// last update: 26/5/2020
+
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
@@ -26,6 +32,7 @@ boolean control = false;
 const uint16_t kCaptureBufferSize = 1024;
 const uint8_t kTimeOut = 50;
 const uint16_t kFrequency = 38000;
+int isize = 0;
 
 const char *mqtt_server = "chika.gq";
 const int mqtt_port = 2502;
@@ -53,7 +60,8 @@ boolean startSmartConfig();
 void longPress();
 void callback(char *topic, byte *payload, unsigned int length);
 void reconnect();
-void setupACCode();
+void raw2Binary(uint16_t data[], int nsize, int payloadDecode[]);
+void binary2Raw(char *bin, int rawData[]);
 uint64_t stringToUint64(String input);
 uint64_t iDontKnow(int exp);
 
@@ -63,7 +71,6 @@ void setup()
   Serial.println("IR Device is ready");
 
   irsend.begin();
-  setupACCode();
 
   WiFi.setAutoConnect(true);   // auto connect when start
   WiFi.setAutoReconnect(true); // auto reconnect the old WiFi when leaving internet
@@ -119,58 +126,24 @@ void loop()
         JsonDoc.clear();
         deserializeJson(JsonDoc, IR_value);
         String protocol = JsonDoc["protocol"]; //get protocol
-        String value = JsonDoc["value"];       //get value IR
-        uint16_t nbit = JsonDoc["nbit"];       //get size IR value
+        uint16_t nsize = JsonDoc["size"]; //get size IR value
 
-        uint64_t IRvalue = stringToUint64(value);
-
-        int arraySize = JsonDoc["state"].size(); // get array size
-        uint8_t stateVal[arraySize];
-        for (uint16_t i = 0; i < arraySize; i++)
+        if (nsize < 200)
         {
-          stateVal[i] = JsonDoc["state"][i].as<uint8_t>();
-        }
-
-        uint16_t rawSize = JsonDoc["rawData"].size(); // get array state
-        Serial.println(rawSize);
-        uint16_t rawData[rawSize];
-        for (int i = 0; i < rawSize; i++)
-        {
-          rawData[i] = JsonDoc["rawData"][i].as<uint16_t>();
-        }
-
-        char protocol_char[20];
-        protocol.toCharArray(protocol_char, protocol.length() + 1);
-        decode_type_t protocolType = strToDecodeType(protocol_char);
-
-        if (hasACState(protocolType))
-        {
-          if (irAC.isProtocolSupported(protocolType))
+          uint16_t rawData[nsize];
+          for (int i = 0; i < nsize; i++)
           {
-            Serial.println("Send AC has Supported");
-            irAC.next.protocol = protocolType;
-            irAC.next.degrees = 20;
-            irAC.next.power = true;
-            irAC.sendAc();
-          }else
-          {
-            Serial.println("Send AC hasn't supported ");
-            irsend.send(protocolType, stateVal, nbit / 8);
-            irsend.sendRaw(rawData, rawSize, 38);
+            rawData[i] = JsonDoc["rawData"][i].as<uint16_t>();
           }
+          irsend.sendRaw(rawData, nsize, 38);
         }
-        else if (protocol.equals("UNKNOWN"))
+        else if (nsize > 200)
         {
-          Serial.println("Send UNKNOW");
-          irsend.sendRaw(rawData, rawSize, 38);
+          String binData = JsonDoc["binaryData"];
+          char *pBinData;
+          binData.toCharArray(pBinData, binData.length() + 1);
         }
-        else
-        {
-          Serial.println("Send has Protocol");
-          // irsend.send(protocolType, IRvalue, nbit);
-          irsend.sendRaw(rawData, rawSize, 38);
-        }
-
+        
         control = false;
       }
       // //======================= end of control ================================
@@ -185,27 +158,36 @@ void loop()
         {
           JsonDoc.clear();
           JsonDoc["protocol"] = typeToString(results.decode_type);
-          JsonDoc["nbit"] = results.bits;
-          JsonDoc["value"] = uint64ToString(results.value, 10);
+          uint16_t nsize = getCorrectedRawLength(&results);
+          JsonDoc["size"] = nsize;
 
-          JsonArray state = JsonDoc.createNestedArray("state"); // create array of state for Air conditioner
-          for (int i = 0; i < (results.bits / 8); i++)
-          {
-            state.add(results.state[i]);
-          }
-
-          uint16_t size = getCorrectedRawLength(&results);
           uint16_t *rawData;
           rawData = resultToRawArray(&results);
-
-          JsonArray raw = JsonDoc.createNestedArray("rawData");
-          Serial.println(size);
-          for (int i = 0; i < size; i++)
+          if (nsize < 200)     // because JsonArray can't carry more than 200 value
           {
-            raw.add(rawData[i]);
+            JsonDoc["type"] = "non-AC";
+            JsonArray raw = JsonDoc.createNestedArray("rawData"); // create Array
+            for (int i = 0; i < nsize; i++)
+            {
+              raw.add(rawData[i]);    // add value
+            }
           }
-          Serial.println();
-          Serial.println(raw.size());
+          else if (nsize >= 200) // if data size over 200 value , should transfer value to binary
+          {
+            JsonDoc["type"] = "AC";
+            int binaryValue[500];
+            isize = 0 ;                              // index of binaryValue
+            raw2Binary(rawData, nsize, binaryValue); // tranfer raw data to binary 
+            String dataBinary;
+            Serial.println(isize);
+            for (int i = 0; i < isize; i++)
+            {
+              dataBinary += binaryValue[i];          // add value to String
+              Serial.printf("%d ", binaryValue[i]);
+            }
+            Serial.println(dataBinary);
+            JsonDoc["binaryData"] = dataBinary;
+          }
 
           String payload;
           serializeJson(JsonDoc, payload);
@@ -287,9 +269,10 @@ void callback(char *topic, byte *payload, unsigned int length)
     {
       learn = true;
       irrecv.enableIRIn(); // Start led receiver
-    }else if(data.equals("0"))  learn = false;
+    }
+    else if (data.equals("0"))
+      learn = false;
   }
-
 }
 
 void tick()
@@ -445,24 +428,75 @@ uint64_t iDontKnow(int exp)
   }
 }
 
-void setupACCode()
+void raw2Binary(uint16_t data[], int nsize, int payloadDecode[])
+{  
+  for (int i = 0; i < nsize; i += 2)
+  {
+    if (data[i] > 50000)
+    {
+      payloadDecode[isize] = 4;
+    }
+    else if (data[i] > 20000)
+    {
+      payloadDecode[isize] = 3;
+      if (data[i + 1] > 1000)
+        i--;
+    }
+    else if (data[i] > 3000)
+    {
+      payloadDecode[isize] = 2;
+      if (data[i + 1] > 1000)
+        i--;
+      else
+        payloadDecode[isize] = 1;
+    }
+    else if (data[i] > 1000)
+      payloadDecode[isize] = 1;
+    else
+      payloadDecode[isize] = 0;
+    isize++;
+  }
+}
+
+void binary2Raw(char *bin, int rawData[])
 {
-  irAC.next.protocol = decode_type_t::DAIKIN;    // Set a protocol to use.
-  irAC.next.model = 1;                           // Some A/Cs have different models. Try just the first.
-  irAC.next.mode = stdAc::opmode_t::kCool;       // Run in cool mode initially.
-  irAC.next.celsius = true;                      // Use Celsius for temp units. False = Fahrenheit
-  irAC.next.degrees = 25;                        // 25 degrees.
-  irAC.next.fanspeed = stdAc::fanspeed_t::kAuto; // Start the fan at medium.
-  irAC.next.swingv = stdAc::swingv_t::kOff;      // Don't swing the fan up or down.
-  irAC.next.swingh = stdAc::swingh_t::kOff;      // Don't swing the fan left or right.
-  irAC.next.light = false;                       // Turn off any LED/Lights/Display that we can.
-  irAC.next.beep = false;                        // Turn off any beep from the A/C if we can.
-  irAC.next.econo = false;                       // Turn off any economy modes if we can.
-  irAC.next.filter = false;                      // Turn off any Ion/Mold/Health filters if we can.
-  irAC.next.turbo = false;                       // Don't use any turbo/powerful/etc modes.
-  irAC.next.quiet = false;                       // Don't use any quiet/silent/etc modes.
-  irAC.next.sleep = -1;                          // Don't set any sleep time or modes.
-  irAC.next.clean = false;                       // Turn off any Cleaning options if we can.
-  irAC.next.clock = -1;                          // Don't set any current time if we can avoid it.
-  irAC.next.power = false;                       // Initially start with the unit off.
+  int index = 0;
+  while (*bin != NULL)
+  {
+    if (*bin == '4')
+    {
+      rawData[index] = 65000;
+      index++;
+      rawData[index] = 0;
+      index++;
+    }
+    if (*bin == '3')
+    {
+      rawData[index] = 29800;
+      index++;
+    }
+    if (*bin == '2')
+    {
+      rawData[index] = 3400;
+      index++;
+    }
+    if (*bin == '1')
+    {
+      if (rawData[index - 1] >= 3400)
+        rawData[index] = 1650;
+      else
+        rawData[index] = 1220;
+      index++;
+      rawData[index] = 450;
+      index++;
+    }
+    if (*bin == '0')
+    {
+      rawData[index] = 400;
+      index++;
+      rawData[index] = 440;
+      index++;
+    }
+    bin++;
+  }
 }

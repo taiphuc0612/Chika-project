@@ -2,6 +2,21 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <Ticker.h>
+#include <ArduinoJson.h>
+#include <SPI.h>
+
+/*
+****** From SS01 to MQTT ******
++ Topic MQTT: CA-SS01â€™s id.
++ Message format:
+{"alert":boolean, "state":boolean}
+
+****** From MQTT callback to SS01 ******
++ Topic MQTT: CA-SS01â€™s id.
++ Message format: 1/0     
+1: turn alert on and if state door == 1 --> turn on warning
+0: turn alert off and dont care about state door --> just send to MQTT state of door
+*/
 
 #define ledR 16
 #define ledB 5
@@ -18,6 +33,7 @@ boolean buttonActive = false;
 boolean sensorVal = false;
 boolean sensorLoop = false;
 boolean initialSensor = false;
+
 boolean allowAlarm = false;
 boolean buttonValue = false;
 boolean door = false;
@@ -28,8 +44,9 @@ const int mqtt_port = 2502;
 const char *mqtt_user = "chika";
 const char *mqtt_pass = "2502";
 
-const char *doorState = "CA-Security";
-const char *doorCommand = "CA-Security/control";
+const char *SS01_id = "bc84a8b9-e11a-4cd1-bc5c-b6d957880cbe";
+//const char *doorState = "CA-Security";
+//const char *doorCommand = "CA-Security/control";
 
 Ticker ticker;
 WiFiClient esp;
@@ -63,7 +80,7 @@ void setup()
 
   ticker.attach(1, tick2); // initial led show up
 
-  Serial.println("Waiting for Internet");
+  Serial.println("Waiting for Internet ...");
   uint16_t i = 0;
   digitalWrite(alarm, LOW);
   digitalWrite(alarmLed, LOW);
@@ -105,8 +122,8 @@ void loop()
     {
       client.loop();
       // do something here
-      door = checkSensor();
       checkButton();
+      door = checkSensor();
       if (allowAlarm)
       {
         digitalWrite(alarmLed, HIGH); //turn on led
@@ -139,7 +156,6 @@ void loop()
     digitalWrite(ledR, !state);
     delay(500);
   }
-
   delay(100);
 }
 
@@ -151,34 +167,37 @@ void tickAlarm()
 
 boolean checkSensor()
 {
+  String sendMQTT;
+  char payload_sendMQTT[300];
+  StaticJsonDocument<300> JsonDoc;
   sensorVal = digitalRead(mc35);
-  if (!initialSensor)
+
+  if (sensorVal != sensorLoop)
   {
     if (sensorVal)
     {
-      sensorLoop = true;
-      client.publish(doorState, "OPEN");
+      JsonDoc["alert"] = allowAlarm;
+      JsonDoc["state"] = true;
+      serializeJson(JsonDoc, sendMQTT);
+      sendMQTT.toCharArray(payload_sendMQTT, sendMQTT.length() + 1);
+      client.publish(SS01_id, payload_sendMQTT, true);
+      sensorLoop = sensorVal;
       return true;
     }
     else
     {
-      sensorLoop = false;
-      client.publish(doorState, "CLOSE");
+      JsonDoc["alert"] = allowAlarm;
+      JsonDoc["state"] = false;
+      serializeJson(JsonDoc, sendMQTT);
+      sendMQTT.toCharArray(payload_sendMQTT, sendMQTT.length() + 1);
+      client.publish(SS01_id, payload_sendMQTT, true);
+      sensorLoop = sensorVal;
       return false;
     }
-    initialSensor = true;
   }
-  if (sensorVal && !sensorLoop)
+  else
   {
-    client.publish(doorState, "OPEN");
-    sensorLoop = true;
-    return true;
-  }
-  else if (!sensorVal && sensorLoop)
-  {
-    client.publish(doorState, "CLOSE");
-    sensorLoop = false;
-    return false;
+    return sensorVal;
   }
 }
 
@@ -205,7 +224,7 @@ void reconnect()
   if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass))
   {
     Serial.println("connected");
-    client.subscribe(doorCommand);
+    client.subscribe(SS01_id);
   }
   else
   {
@@ -220,18 +239,25 @@ void callback(char *topic, byte *payload, unsigned int length)
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
-  String data;
+  String payload_toStr;
   String mtopic = (String)topic;
 
   for (uint16_t i = 0; i < length; i++)
   {
-    data += (char)payload[i];
+    payload_toStr += (char)payload[i];
   }
-  Serial.println(data);
+  Serial.println(payload_toStr);
 
-  if(topic == doorCommand){
-    if(data == "ON")  allowAlarm = true;
-    else  allowAlarm = false;
+  if (String(topic).equals(SS01_id))
+  {
+    if (payload[0] == '1')
+    {
+      allowAlarm = true;
+    }
+    else if (payload[0] == '0')
+    {
+      allowAlarm = false;
+    }
   }
 }
 

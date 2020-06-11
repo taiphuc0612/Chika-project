@@ -1,3 +1,5 @@
+// Last update 11/6/2020
+
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
@@ -21,7 +23,6 @@ uint32_t timer_smartConfig = 0;
 uint16_t timer_sendTempHumi = 0;
 uint16_t longPressTime = 6000;
 int numberOfDevice = 0;
-int funDelay = 2000;
 
 boolean buttonActive = false;
 
@@ -109,6 +110,7 @@ void setup()
 
   while (!client.connected())
   {
+    longPress();
     reconnect(); // Need connect to MQTT for getting token user
     delay(100);
   }
@@ -226,7 +228,7 @@ void callback(char *topic, byte *payload, unsigned int length)
 
   if (mtopic == HC_ID)
   {
-    tokenUser = data; // Token for get user device on server
+    tokenUser = "Bearer " + data; // Token for get user device on server
   }
 
   for (int i = 0; i < numberOfDevice; i++)

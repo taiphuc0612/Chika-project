@@ -19,7 +19,7 @@ using namespace std;
 int CE = 9;
 int CSN = 10;
 RF24 radio(CE, CSN);                    //nRF24L01 (CE,CSN) connections PIN
-const uint64_t address = 1002502019003; //Changeable
+const uint64_t address = 1002502019002; //Changeable
 
 const int control[3] = {2, 3, 4};
 const int button[3] = {5, 6, 7};

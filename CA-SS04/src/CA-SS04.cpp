@@ -1,5 +1,5 @@
-// gia tri gui di  flame : true/false ; Gas 0/1/2
-
+// Value send:  flame true/false ; Gas 0/1/2
+// last update 26/5/2020
 
 #include <Arduino.h>
 #include <SPI.h>
@@ -167,6 +167,7 @@ void loop()
         sendData();
         digitalWrite(buzzer, HIGH);
         showBlue();
+        allowWarning = true;
       }
     }
     else if (gas >= 50 && gas < 100)
@@ -175,6 +176,7 @@ void loop()
       if (!digitalRead(ledG))
       {
         sendData();
+        allowWarning = true;
         digitalWrite(buzzer, HIGH);
         if (!digitalRead(ledR))
           showBlue2Green();
@@ -196,7 +198,6 @@ void loop()
   }
   else if (flame)
   {
-    sendData();
     warning();
     if (digitalRead(ledB))
     {
@@ -206,6 +207,7 @@ void loop()
     else if (digitalRead(ledG))
     {
       showRed();
+      sendData();
     }
   }
 

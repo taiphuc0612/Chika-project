@@ -1,4 +1,4 @@
-//The future is always a blank page
+//Last update 11/6/2020
 //1002502019002 - CA-SW2, 1002502019003 - CA-SW3, 1002502019004 - PIR , 1002502019005 AQI, 1002502019005 Flame&Gas
 
 #include <Arduino.h>
@@ -15,7 +15,7 @@
 
 #define CE 9
 #define CSN 53
-#define PIN 6               // Pin pixel
+#define PIN 6 // Pin pixel
 #define NUMPIXELS 8
 #define DELAYVAL 100
 #define buzzer_pin 8
@@ -108,12 +108,12 @@ void loop()
         Serial.println(pipeNum);
         radio.read(&Device_2_HC, sizeof(Device_2_HC)); // read data form device
         JsonDoc.clear();
-        String typeDevice ;          // get type of device recevie
+        String typeDevice; // get type of device recevie
         typeDevice += "CA-";
         typeDevice += CA_device[pipeNum - 1].type;
 
-        JsonDoc["type"] = typeDevice;                    // Json type
-        JsonDoc["id"] = CA_device[pipeNum - 1].id;       // Json id , it help on esp get index device in EEPROM
+        JsonDoc["type"] = typeDevice;              // Json type
+        JsonDoc["id"] = CA_device[pipeNum - 1].id; // Json id , it help on esp get index device in EEPROM
 
         if (typeDevice.equals("CA-SR"))
         {
@@ -126,7 +126,7 @@ void loop()
             //     if(Device_2_HC[i] != CA_device[pipeNum - 1].value[i]){
             //         JsonDoc["button"] = i + 1;
             //         JsonDoc["state"] = Device_2_HC[i];
-            //         CA_device[pipeNum - 1].value[i] = Device_2_HC[i]; 
+            //         CA_device[pipeNum - 1].value[i] = Device_2_HC[i];
             //     }
             // }
 
@@ -143,7 +143,7 @@ void loop()
         if (typeDevice.equals("CA-SS02"))
         {
             JsonDoc["auto"] = CA_device[pipeNum - 1].value[0] = (boolean)Device_2_HC[0];  //Json auto mode and store
-            JsonDoc["state"] = CA_device[pipeNum - 1].value[1] = (boolean)Device_2_HC[1]; //Json state and store
+            JsonDoc["state"] = CA_device[pipeNum - 1].value[1] = (boolean)Device_2_HC[2]; //Json state and store
             String payload;
             serializeJson(JsonDoc, payload); //encode Json to String
             Serial.println(payload);
@@ -304,8 +304,13 @@ void loop()
                 JsonVariant checkContainKey = JsonDoc[key[i]];
                 if (!checkContainKey.isNull())
                 {
-                    if(i == 1)
+                    if (i == 1)
                         CA_device[index].value[i] = checkContainKey.as<float>() * 1000;
+                    else
+                    {
+                        CA_device[index].value[i] = checkContainKey.as<float>();
+                    }
+
                     Serial.println(CA_device[index].value[i]);
                 }
                 else
@@ -407,6 +412,7 @@ void initial()
                     }
                     delay(100);
                 }
+                Serial3.readString();
             }
 
             if (payload.equals("WIFI_CONNECTED"))
@@ -422,6 +428,7 @@ void initial()
             {
                 Serial.print("MEGA: ");
                 Serial.println("Everything is alright");
+                Serial3.readString();       // clear data on recevie buffer
             }
 
             if (command == "Number_Of_Device")
@@ -429,6 +436,7 @@ void initial()
                 numberOfDevice = JsonDoc["value"];
                 Serial.println(numberOfDevice);
                 Serial.println();
+                Serial3.readString();       // clear data on recevie buffer
             }
 
             if (command == "Data_Of_Device")
@@ -459,6 +467,7 @@ void initial()
                 Serial.print("RF_channel : ");
                 Serial.println(PriUint64<DEC>(CA_device[index].RF_Channel));
                 Serial.println();
+                Serial3.readString();       // clear data on recevie buffer
             }
 
             if (command == "End_Data_Device")
@@ -519,6 +528,7 @@ void initial()
                 Serial3.print("\r");
                 Serial3.print("Check_Done");
                 Serial3.print("\r");
+                Serial3.readString();       // clear data on recevie buffer
             }
 
             if (command == "Finish")
