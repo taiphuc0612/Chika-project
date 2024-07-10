@@ -1,0 +1,328 @@
+vimrc
+"----------------------------------------
+"               CleverTab
+"----------------------------------------
+" help completion , search CleverTab
+       function! CleverTab()
+          if strpart( getline('.'), col('.')-2,1 ) =~ '^\s*$'
+         return "\<Tab>"
+          else
+         return "\<C-N>"
+       endfunction
+" Map key Tab: go-down, Shift-Tab : go-up
+   inoremap <Tab> <C-R>=CleverTab()<CR>
+   inoremap <S-Tab> <C-P>
+"------------------------------------------
+set ignorecase smartcase
+set nocompatible
+"set backspace=indent,eol,start
+set history=10000
+set ruler    
+set showcmd  
+set incsearch
+set hlsearch
+set number
+set expandtab
+set tabstop=4
+set shiftwidth=4
+"set tw=80
+"set ts=2
+"set mouse=a
+set showmatch
+"set linebreak
+set cursorcolumn
+set cursorline
+set nowrap
+"set foldmethod=marker
+"set cindent shiftwidth=4
+"set autoindent
+"set wildmode=full
+"set wildmenu
+set ft=verilog
+set formatoptions-=cro
+"set et
+":filetype on
+"if !exists("syntax_on")
+"  syntax on
+"endif
+"let g:vimsyn_folding='af'
+":filetype plugin on
+"let Tlist_Exit_OnlyWindow = 1
+"let Tlist_Auto_Open = 0
+"if (@% =~ "[\.]c$" || @% =~ "[\.]cpp$" || @% =~ "[\.]h$")
+"  let Tlist_Auto_Open = 1
+"endif
+set background="dark"
+map <F7> :<ESC>:set mouse=i<ESC>
+map <F8> :<ESC>:set mouse=a<ESC>
+map <F2> :<ESC>:w!<ESC>
+map <F4> :<ESC><C-W>w<ESC>
+map <F5> :<ESC>:set wrap<ESC>
+map <F6> :<ESC>:set nowrap<ESC>
+map <F12> :<ESC>:q!<ESC>
+map <F3> :<ESC>:set nu!<ESC>
+map <F1> :<ESC>:set paste<ESC>
+"___________________________
+"
+"
+"       Highlighting
+"
+"___________________________
+if ($TERM == "xterm")
+   set t_Co=256                        "Enable 256-color mode
+endif
+"colorscheme gruvbox
+"highlight Normal ctermbg=black
+"highlight nonText ctermbg=black
+if (&t_Co == 256)
+    hi DiffAdd    cterm=NONE ctermfg=White ctermbg=136
+    hi DiffChange cterm=NONE ctermfg=229 ctermbg=105
+    hi DiffDelete cterm=NONE ctermfg=White ctermbg=Gray
+    hi DiffText   cterm=NONE ctermfg=RED  ctermbg=DarkGreen
+    hi Search     cterm=NONE ctermfg=1 ctermbg=Yellow
+    hi CursorLine cterm=NONE ctermbg=238
+    hi CursorColumn cterm=NONE ctermbg=238
+    hi MatchParen cterm=NONE ctermbg=Green
+    hi Statement  cterm=bold ctermfg=Yellow
+    hi LineNr     cterm=NONE ctermfg=Green
+    hi Visual     cterm=NONE ctermbg=245
+    "hi Statusline cterm=bold ctermbg=White ctermfg=Blue
+endif
+nnoremap <TAB> :noh<CR><ESC>
+:map <C-W><Space> :v//d<CR>
+:map <C-W><BackSpace> :g//d<CR>
+":map <C-W><S-A> i/*AUTOARG*/<ESC>
+":map <C-W><S-S> i/*AUTOSENSE*/<ESC>
+":map <C-W><S-I> i/*AUTOINST*/<ESC>
+":map <C-W><S-R> i/*AUTOREG*/<ESC>
+":map <C-W><S-W> i/*AUTOWIRE*/<ESC>
+":map <C-W><S-E> i/*AUTORESET*/<ESC>
+:map <F4> :set ft=verilog <CR>
+:map <F5> :set nu <CR>
+:map <F6> :set nonu <CR>
+":map <F7> :w! <CR>
+":map <F8> :q! <CR>
+:map <F9> :set mouse=a <CR>
+:map <F7> :set mouse=  <CR>
+":map <C-K> <C-W><S-K>
+":map <C-L> <C-W><S-L>
+" ===============================================
+:au BufNewFile,BufRead   *.sh        set filetype=csh
+:au BufNewFile,BufRead   *.src       set filetype=asm
+:au BufNewFile,BufRead   *.sv        set filetype=verilog
+:au BufNewFile,BufRead   *.v         set filetype=verilog
+:au BufNewFile,BufRead   *.V         set filetype=verilog
+:au BufNewFile,BufRead   *.psl       set filetype=verilog
+:au BufNewFile,BufRead   *.log       set filetype=help
+:au BufNewFile,BufRead   *.exrc      set filetype=vim
+:au BufNewFile,BufRead   *.vimrc     set filetype=vim
+:au BufNewFile,BufRead   *.vifile    set filetype=vim
+:au BufNewFile,BufRead   *.in        set filetype=cpp
+:au BufNewFile,BufRead   *.pdl       set filetype=csh
+"" Creating a mapping key for comment block based on filename
+"" This file is source by .exrc
+"" Usage:
+""+ Mark beginning point and ending point by mq and mw
+""+ Type these control keys in command mode:
+""  - CRTL_W D    : comment lines from `q to `w
+""  - CRTL_W F    : uncomment lines from `q to `w
+"
+"function! Call_Toggle()
+"    if (@% =~ "[\.]c$" || @% =~ "[\.]cpp$" || @% =~ "[\.]h$")
+"      TlistToggle
+"    endif
+"    
+"endfunction
+"map <F3> :call Call_Toggle()<CR>
+"
+":function Make_Increasing(...)
+": let k = 0
+": let pad = 0
+": let start = 0
+": let step = 1
+": let format_type = "dec"
+"" : echo "start: " a:firstline "last: " a:lastline
+": for s in a:000
+":   if(s=="-p")
+":     let pad = 1
+":   elseif(s=="%d")
+":     let format_type = "dec"
+":   elseif(s=="%0d")
+":     let pad = 1
+":     let format_type = "dec"
+":   elseif(s=="%b")
+":     let format_type = "bin"
+":   elseif(s=="%0b")
+":     let pad = 1
+":     let format_type = "bin"
+":   elseif(s=="%o")
+":     let format_type = "oct"
+":   elseif(s=="%0o")
+":     let pad = 1
+":     let format_type = "oct"
+":   elseif(s=="%h")
+":     let format_type = "hex"
+":   elseif(s=="%0h")
+":     let pad = 1
+":     let format_type = "hex"
+":   else
+":     let k = k + 1
+":   endif
+": endfor
+": if(k==1)
+":   let start = a:1
+": endif
+": if(k==2)
+":   let start = a:1
+":   let step  = a:2
+": endif
+"": echo "start = " start " step = " step
+": let flag_c = 0
+": let flag_l = 0
+": normal gv
+": normal o
+"": normal `>
+": normal mX
+": let top =  line(".")
+": let left =  col(".")
+": normal o
+"": normal `<
+": normal mY
+": let bottom =  line(".")
+": let right =  col(".")
+": normal v
+": normal v
+""" permute between left and right (column)
+": if(left > right)
+":   let temp = left
+":   let left = right
+":   let right = temp
+":   let flag_c = 1
+": endif
+""" permute between top and bottom (line)
+": if(top > bottom)
+":   let temp = top
+":   let top = bottom
+":   let bottom = temp
+":   let flag_l = 1
+": endif
+": let end = start + (bottom - top)*step
+"" :   let val_temp = str2nr(end)
+":   if(format_type == "bin")
+":     let end_temp = printf("%x", end)
+":     let end_temp = Hex2bin(end_temp)
+":   elseif(format_type == "oct")
+":     let end_temp = printf("%o", end)
+":   elseif(format_type == "hex")
+":     let end_temp = printf("%x", end)
+":   else
+":     let end_temp = printf("%d", end)
+":   end
+": let temp = strlen(end_temp)
+"" : let temp = strlen(end)
+": let length = right - left + 1
+": let diff_c = right - left
+": if (length < temp)
+":   let length = temp
+": endif
+"" move to (top, left) point
+": if(flag_l == 0)
+":   normal `X
+":   if(flag_c == 1)
+":     let i = 0
+":     while(i < diff_c)
+":       normal h
+":       let i = i + 1
+":     endwhile
+":   endif
+": else
+":   normal `Y
+":   if(flag_c == 0)
+":     let i = 0
+":     while(i < diff_c)
+":       normal h
+":       let i = i + 1
+":     endwhile
+":   endif
+": endif
+""calculate and paste to file
+": let line = top
+": let temp = start
+": while(line <= bottom)
+":   normal v
+":   let i = 0
+":   while(i < diff_c)
+":     normal l
+":     let i = i + 1
+":   endwhile
+":   if(format_type == "bin")
+":     let cnt_temp = printf("%x", temp)
+":     let cnt_temp = Hex2bin(cnt_temp)
+":   elseif(format_type == "oct")
+":     let cnt_temp = printf("%o", temp)
+":   elseif(format_type == "hex")
+":     let cnt_temp = printf("%x", temp)
+":   else
+":     let cnt_temp = printf("%d", temp)
+":   end
+":   let str_temp = strlen(cnt_temp)
+"" :   let str_temp = strlen(temp)
+":   let i = str_temp
+":   let @z = ""
+":   let str_pad = " "
+":   if(pad==1)
+"      let str_pad = "0"
+":   endif
+":   while(i < length)
+":     let @z = @z . str_pad
+":     let i = i + 1
+":   endwhile
+":   if(temp < 0)
+":     let temp_n = cnt_temp*(-1)
+"" :     let temp_n = temp*(-1)
+":     let @z = "-" . @z
+":     let @z = @z . temp_n
+":   else
+":     let @z = @z . cnt_temp
+"" :     let @z = @z . temp
+":   endif
+":   let @z = printf("%s", @z)
+":   normal "zP
+""":   normal "zp
+":   let i = 0
+":   while(i < length-1)
+":     normal h
+":     let i = i + 1
+":   endwhile
+":   normal j
+":   let temp = temp + step
+":   let line = line + 1
+": endwhile
+":endfunction
+"" :com -nargs=* Increasing call Make_Increasing(<f-args>)
+":com -range=% -nargs=* Increasing call Make_Increasing(<f-args>)
+"" <C-L> means Linear
+":vmap <C-W><C-L> <ESC>:Increasing
+"" :vnoremap <special> # <ESC>:Increasing
+"
+"  
+"" +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+"Use Tab and BackTab in completion
+function! CleverTab()
+    if strpart( getline('.'), col('.')-2, 2 ) =~ '[a-zA-Z0-9_]'
+        return "\<C-N>"
+    else
+        return "\<Tab>"
+    endif
+endfunction
+inoremap <Tab> <C-R>=CleverTab()<CR>
+" ---------------------------------------------------------
+" +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+function! CleverBackTab()
+    if strpart( getline('.'), col('.')-2, 1 ) =~ '[a-zA-Z0-9_]'
+        return "\<C-P>"
+    else
+        return ""
+    endif
+endfunction
+inoremap <S-Tab> <C-R>=CleverBackTab()<CR>    
